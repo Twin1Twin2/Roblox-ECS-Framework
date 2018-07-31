@@ -170,7 +170,7 @@ function ECSWorld:CreateEntity(entityData, altEntityData)
 
         if (entityInstanceComponentData ~= nil) then
             for _, componentInstanceData in pairs(entityInstanceComponentData:GetChildren()) do
-                local componentName = child.Name
+                local componentName = componentInstanceData.Name
                 local componentData = GetComponentDataFromInstance(componentInstanceData)
                 local currentComponentData = componentList[componentName]
 
@@ -312,8 +312,6 @@ function ECSWorld.new(name)
     self._RegisteredComponents = {}
 
     self._Systems = {}
-
-    self:SetName(name)
 
 
     return self
