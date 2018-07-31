@@ -54,7 +54,7 @@ end
 function ECSEngine.new(engineConfiguration)
     local self = setmetatable({}, ECSEngine)
 
-    self.World = ECSWorld.new(engineConfiguration.WorldName)
+    self.World = ECSWorld.new()
     
     self._RenderSteppedUpdateSystems = {}
     self._SteppedUpdateSystems = {}
@@ -74,7 +74,7 @@ function ECSEngine.new(engineConfiguration)
 
 
     if (engineConfiguration ~= nil and engineConfiguration.ClassName == "ECSEngineConfiguration") then
-        self.World:SetName(engineConfiguration.WorldName)
+        self.World.Name = engineConfiguration.WorldName
 
         self.World:RegisterComponentsFromList(engineConfiguration.Components)
         self.World:RegisterSystemsFromList(engineConfiguration.Systems)
