@@ -70,7 +70,7 @@ function ECSSystem:_AddEntity(entity)
     if (TableContains(self.Entities, entity) == false) then
         table.insert(self.Entities, entity)
 
-        entity:RegisterSystem(self) --change to ECSEntity.RegisterSystem(entity, self) ?
+        entity:RegisterSystem(self.SystemName) --change to ECSEntity.RegisterSystem(entity, self) ?
 
         self:EntityAdded(entity)
     end
@@ -79,10 +79,11 @@ end
 
 function ECSSystem:_RemoveEntity(entity)
     local wasRemoved = AttemptRemovalFromTable(self.Entities, entity)
+    
     if (wasRemoved == true) then
-        entity:UnregisterSystem(self)
-
         self:EntityRemoved(entity)
+
+        entity:UnregisterSystem(self.SystemName)
     end
 end
 
