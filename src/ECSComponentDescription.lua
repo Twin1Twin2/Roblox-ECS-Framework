@@ -38,6 +38,11 @@ function ECSComponentDescription:Create(component, data)
 end
 
 
+function ECSComponentDescription:Initialize(component)
+    
+end
+
+
 function ECSComponentDescription:Destroy()
 
 end

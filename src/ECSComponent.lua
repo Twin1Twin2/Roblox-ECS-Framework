@@ -31,6 +31,11 @@ local ECSComponent = {
 ECSComponent.__index = ECSComponent
 
 
+function ECSComponent:Initialize()
+    self._IsInitialized = true
+end
+
+
 function ECSComponent:_Destroy()
 
 end
@@ -64,6 +69,15 @@ function ECSComponent.new(componentDesc, data)
 
     self._ComponentName = componentDesc.ComponentName
     self._Destroy = DeepCopy(componentDesc.Destroy)
+
+    self.Initialize = function()
+        if (self._IsInitialized == false) then
+            self._IsInitialized = true
+            componentDesc:Initialize(self)
+        end
+    end
+
+    self._IsInitialized = false
     
 
     return self
