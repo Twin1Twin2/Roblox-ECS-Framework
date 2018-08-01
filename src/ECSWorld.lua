@@ -148,6 +148,10 @@ function ECSWorld:RegisterSystem(system)
 
     table.insert(self._Systems, system)
 
+    if (#system.Components > 0) then
+        table.insert(self._EntitySystems, system)
+    end
+
     system:Initialize()
 end
 
@@ -376,7 +380,7 @@ function ECSWorld:_UpdateEntity(entity)  --update after it's components have cha
         end
     end
 
-    for _, system in pairs(self._Systems) do
+    for _, system in pairs(self._EntitySystems) do
         if (self:EntityBelongsInSystem(system, entity) == true) then
             system:AddEntity(entity)
         end
@@ -404,8 +408,7 @@ function ECSWorld.new(name)
     self._RegisteredComponents = {}
 
     self._Systems = {}
-    --self._EntitySystems = {}  --if i wanted to separate systems that look for components in entity
-        --to those that i just want to registered to this world
+    self._EntitySystems = {}
 
 
     return self
