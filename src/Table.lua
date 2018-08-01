@@ -192,4 +192,23 @@ function lib.AttemptRemovalFromTable(t, value)
 end
 
 
+function lib.TableContainsAnyIndex(t, ...)
+	local indexes = {...}
+	
+	if (type(indexes[1]) == "table") then
+		indexes = indexes[1]
+	end
+
+	local containsAnyIndex = false
+
+	for _, index in pairs(indexes) do
+		if (t[index] ~= nil) then
+			containsAnyIndex = true
+		end
+	end
+
+	return containsAnyIndex
+end
+
+
 return lib
