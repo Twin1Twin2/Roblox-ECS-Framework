@@ -58,12 +58,21 @@ function ECSEntity:GetComponent(componentName)
 end
 
 
+function ECSEntity:InitializeComponents()
+    for _, component in pairs(self._Components) do
+        if (component._IsInitialized == false) then
+            component:Initialize()
+        end
+    end
+end
+
+
 function ECSEntity:_AddComponent(componentName, component)
     self._Components[componentName] = component
 end
 
 
-function ECSEntity:AddComponent(componentName, component)
+function ECSEntity:AddComponent(componentName, component, initializeComponents)
     assert(type(componentName) == "string")
     assert(type(component) == "table" and component._IsComponent == true)
 
@@ -75,6 +84,10 @@ function ECSEntity:AddComponent(componentName, component)
     end
 
     self:_AddComponent(componentName, component)
+
+    if (initializeComponents ~= false) then
+        component:Initialize()
+    end
 end
 
 
@@ -102,17 +115,15 @@ end
 
 
 function ECSEntity:UnregisterSystem(systemName)
-    local success = AttemptRemovalFromTable(self._RegisteredSystems, systemName)
+    AttemptRemovalFromTable(self._RegisteredSystems, systemName)
 
-    if (self._IsBeingRemoved == true) then
-        if (#self._RegisteredSystems == 0) then
-            if (self.World ~= nil) then
-                self.World:ForceRemoveEntity(self)
-            else
-                pcall(function()
-                    self:Destroy()
-                end)
-            end
+    if (self._IsBeingRemoved == true and #self._RegisteredSystems == 0) then
+        if (self.World ~= nil) then
+            self.World:ForceRemoveEntity(self)
+        else
+            pcall(function()
+                self:Destroy()
+            end)
         end
     end
 end
