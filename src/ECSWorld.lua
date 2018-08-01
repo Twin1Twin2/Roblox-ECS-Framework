@@ -8,11 +8,20 @@ local GetComponentDataFromInstance = require(script.Parent.GetComponentDataFromI
 
 local TableContains = Table.Contains
 local TableMerge = Table.Merge
+local TableCopy = Table.Copy
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
+local TableContainsAnyIndex = Table.TableContainsAnyIndex
 
 local COMPONENT_DESC_CLASSNAME = "ECSComponentDescription"
 local SYSTEM_CLASSNAME = "ECSSystem"
 local ENTITY_INSTANCE_COMPONENT_DATA_NAME = "COMPONENTS"
+
+local ENTITY_DATA_INDEXES = {
+    "Instance";
+    "Components";
+    "Tags";
+    "UpdateEntity";
+}
 
 
 local ECSWorld = {
@@ -33,9 +42,28 @@ function ECSWorld:GetEntityFromInstance(instance)   --need to redo
 end
 
 
+function ECSWorld:GetEntityFromInstance(instance)
+    local currentEntity = nil
+
+    for _, entity in pairs(self._Entities) do
+        if (entity:ContainsInstance(instance) == true) then
+            if (currentEntity ~= nil) then
+                if (currentEntity.Instance:IsAncestorOf(entity.Instance) == true) then
+                    currentEntity = entity
+                end
+            else
+                currentEntity = entity
+            end
+        end
+    end
+
+    return currentEntity
+end
+
+
 function ECSWorld:GetSystem(systemName)
     for _, system in pairs(self._Systems) do
-        if (system.ClassName == systemName) then
+        if (system.SystemName == systemName) then
             return system
         end
     end
@@ -110,7 +138,7 @@ function ECSWorld:RegisterSystem(system)
     end
 
     assert(type(system) == "table", "")
-    assert(system._IsSystem == true, "ECSWorld :: RegisterSystem() Argument [1] is not a \"" .. SYSTEM_CLASSNAME .. "\"! ClassName = " .. tostring(system.ClassName))
+    assert(system._IsSystem == true, "ECSWorld :: RegisterSystem() Argument [1] is not a \"" .. SYSTEM_CLASSNAME .. "\"! ClassName = " .. tostring(system.SystemName))
 
     local systemName = system.SystemName
 
@@ -140,31 +168,60 @@ function ECSWorld:RegisterSystemsFromList(systemDescs)
 end
 
 
-function ECSWorld:_EntityBelongsInSystem(system, entity)
+function ECSWorld:EntityBelongsInSystem(system, entity)
     local systemComponents = system.Components
 
-    return entity:HasComponents(systemComponents)
+    return (#systemComponents > 0 and entity:HasComponents(systemComponents))
 end
 
 
-function ECSWorld:CreateEntity(entityData, altEntityData)
+function ECSWorld:CreateEntity(...)
     local instance = nil
-    local componentList = nil
+    local componentList = {}
+    local tags = {}
+    local updateEntity = true
 
-    if (typeof(entityData) == "Instance") then
-        instance = entityData
-    elseif (typeof(altEntityData) == "Instance") then
-        instance = altEntityData
+    local function SetData(data)
+        local firstIndex = data[1]
+
+        if (type(firstIndex) == "string") then
+            tags = data
+        elseif (type(firstIndex) == "table") then
+            componentList = data
+        elseif (TableContainsAnyIndex(data, ENTITY_DATA_INDEXES) == true) then
+            if (typeof(data.Instance) == "Instance" and instance ~= nil) then
+                instance = data.Instance
+            end
+    
+            if (type(data.Components) == "table") then
+                componentList = data.Components
+            end
+    
+            if (type(data.UpdateEntity) == "boolean") then
+                updateEntity = data.UpdateEntity
+            end
+    
+            if (type(data.Tags) == "table") then
+                tags = data.Tags
+            end
+        else
+            componentList = data
+        end
     end
 
-    if (type(entityData) == "table") then
-        componentList = entityData
-    elseif (type(altEntityData) == "table") then
-        componentList = altEntityData
-    else
-        componentList = {}
+    local entityData = {...}
+
+    for _, eData in pairs(entityData) do
+        if (typeof(eData) == "Instance") then
+            instance = eData
+        elseif (type(eData) == "boolean") then
+            updateEntity = eData
+        elseif (type(eData) == "table") then
+            SetData(eData)
+        end
     end
 
+    
     if (instance ~= nil) then
         local entityInstanceComponentData = instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME)
 
@@ -183,7 +240,7 @@ function ECSWorld:CreateEntity(entityData, altEntityData)
         end
     end
 
-    local entity = ECSEntity.new(instance)
+    local entity = ECSEntity.new(instance, tags)
 
     local function AddComponentToEntity(entity, componentName, componentData)
         local newComponent = self:_CreateComponent(componentName, componentData)
@@ -200,9 +257,27 @@ function ECSWorld:CreateEntity(entityData, altEntityData)
     entity.World = self
     table.insert(self._Entities, entity)
 
-    self:_UpdateEntity(entity)
+    if (updateEntity ~= false) then
+        self:_UpdateEntity(entity)
+    end
 
     return entity
+end
+
+
+function ECSWorld:_RemoveEntity(entity)
+    if (entity._IsBeingRemoved ~= true) then
+        entity._IsBeingRemoved = true   --set flag to true
+
+        local registeredSystems = TableCopy(entity:GetRegisteredSystems())
+
+        for _, systemName in pairs(registeredSystems) do
+            local system = self:GetSystem(systemName)
+            if (system ~= nil) then
+                system:RemoveEntity(entity)
+            end
+        end
+    end
 end
 
 
@@ -211,14 +286,25 @@ function ECSWorld:RemoveEntity(entity)
         return
     end
 
-    entity._IsBeingRemoved = true   --set flag to true
+    self:_RemoveEntity(entity)
+end
 
-    local registeredSystems = TableCopy(entity:GetRegisteredSystems())
 
-    for _, systemName in pairs(registeredSystems) do
-        local system = self:GetSystem(systemName)
-        if (system ~= nil) then
-            system:RemoveEntity(entity)
+function ECSWorld:RemoveEntitiesWithTag(tag)
+    for _, entity in pairs(self._Entities) do
+        if (entity:HasTag(tag) == true) then
+            self:_RemoveEntity(entity)
+        end
+    end
+end
+
+
+function ECSWorld:RemoveEntitiesWithTags(...)
+    local tags = {...}
+
+    for _, entity in pairs(self._Entities) do
+        if (entity:HasTags(tags) == true) then
+            self:_RemoveEntity(entity)
         end
     end
 end
@@ -227,7 +313,9 @@ end
 function ECSWorld:ForceRemoveEntity(entity)
     AttemptRemovalFromTable(self._Entities, entity)
 
-    entity:Destroy()
+    pcall(function()
+        entity:Destroy()
+    end)
 end
 
 
@@ -276,16 +364,20 @@ end
 
 
 function ECSWorld:_UpdateEntity(entity)  --update after it's components have changed or it was just added
+    if (entity._IsBeingRemoved == true) then
+        return
+    end
+
     for _, systemName in pairs(entity:GetRegisteredSystems()) do
         local system = self:GetSystem(systemName)
         
-        if (system ~= nil and self:_EntityBelongsInSystem(system, entity) == false) then
+        if (system ~= nil and self:EntityBelongsInSystem(system, entity) == false) then
             system:RemoveEntity(entity)
         end
     end
 
     for _, system in pairs(self._Systems) do
-        if (self:_EntityBelongsInSystem(system, entity) == true) then
+        if (self:EntityBelongsInSystem(system, entity) == true) then
             system:AddEntity(entity)
         end
     end
@@ -312,6 +404,8 @@ function ECSWorld.new(name)
     self._RegisteredComponents = {}
 
     self._Systems = {}
+    --self._EntitySystems = {}  --if i wanted to separate systems that look for components in entity
+        --to those that i just want to registered to this world
 
 
     return self
