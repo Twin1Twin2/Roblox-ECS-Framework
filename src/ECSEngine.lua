@@ -19,7 +19,7 @@ local LOCKMODE_ERROR = ECSSystem.LOCKMODE_ERROR
 
 function ECSEngine:RenderSteppedUpdate(stepped)
     for _, system in pairs(self._RenderSteppedUpdateSystems) do
-        system:SetLockMode(LOCKMODE_ERROR)
+        system:SetLockMode(LOCKMODE_LOCKED)
         system:Update(stepped)
         system:SetLockMode(LOCKMODE_OPEN)
     end
@@ -30,7 +30,7 @@ function ECSEngine:SteppedUpdate(t, stepped)
     self.World.T = t  --idk
 
     for _, system in pairs(self._SteppedUpdateSystems) do
-        system:SetLockMode(LOCKMODE_ERROR)
+        system:SetLockMode(LOCKMODE_LOCKED)
         system:Update(stepped)
         system:SetLockMode(LOCKMODE_OPEN)
     end
