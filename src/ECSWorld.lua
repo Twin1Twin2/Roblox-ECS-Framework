@@ -15,13 +15,26 @@ local TableContainsAnyIndex = Table.TableContainsAnyIndex
 local COMPONENT_DESC_CLASSNAME = "ECSComponentDescription"
 local SYSTEM_CLASSNAME = "ECSSystem"
 local ENTITY_INSTANCE_COMPONENT_DATA_NAME = "COMPONENTS"
+local ENTITY_INSTANCE_TAG_DATA_NAME = "TAGS"
 
 local ENTITY_DATA_INDEXES = {
     "Instance";
     "Components";
     "Tags";
     "UpdateEntity";
+    "CFrame";
 }
+
+
+local function GetCFrameFromInstance(instance)
+    if (instance:IsA("Model") == true) then
+        if (instance.PrimaryPart ~= nil) then
+            return instance:GetPrimaryPartCFrame()
+        end
+    elseif (instance:IsA("BasePart") == true) then
+        return instance.CFrame
+    end
+end
 
 
 local ECSWorld = {
@@ -179,11 +192,72 @@ function ECSWorld:EntityBelongsInSystem(system, entity)
 end
 
 
-function ECSWorld:CreateEntity(...)
+local function GetEntityData(entityData)
     local instance = nil
     local componentList = {}
     local tags = {}
+    local cframe = nil
     local updateEntity = true
+    local initializeComponents = true
+
+    local function SetComponentListData(newComponentList)
+        for componentName, componentData in pairs(newComponentList) do
+            local currentComponentData = componentList[componentName]
+            if (currentComponentData == nil) then
+                componentList[componentName] = componentData
+            else
+                componentList[componentName] = TableMerge(currentComponentData, componentData)
+            end
+        end
+    end
+
+    local function SetInstanceData(newInstance)
+        if (instance ~= nil) then
+            local newCFrame = GetCFrameFromInstance(newInstance)
+            if (newCFrame ~= nil) then
+                cframe = newCFrame
+            end
+        end
+
+        instance = newInstance
+
+        local entityInstanceComponentData = instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME)
+        local entityInstanceTagData = instance:FindFirstChild(ENTITY_INSTANCE_TAG_DATA_NAME)
+
+        if (entityInstanceComponentData ~= nil) then
+            local newComponentList = {}
+
+            for _, componentInstanceData in pairs(entityInstanceComponentData:GetChildren()) do
+                local componentName = componentInstanceData.Name
+                newComponentList[componentName] = GetComponentDataFromInstance(componentInstanceData)
+            end
+
+            SetComponentListData(newComponentList)
+        end
+
+        if (entityInstanceTagData ~= nil) then
+            for _, tagInstanceData in pairs(entityInstanceTagData:GetChildren()) do
+                local tagName = tagInstanceData.Name
+
+                if (TableContains(tags) == false) then
+                    table.insert(tags, tagName)
+                end
+            end
+        end
+    end
+
+    local function SetBoolData(enum)
+        if (enum == 0) then
+            updateEntity = true
+            initializeComponents = true
+        elseif (enum == 1) then
+            updateEntity = false
+            initializeComponents = true
+        elseif (enum == 2) then
+            updateEntity = false
+            initializeComponents = false
+        end
+    end
 
     local function SetData(data)
         local firstIndex = data[1]
@@ -191,66 +265,77 @@ function ECSWorld:CreateEntity(...)
         if (type(firstIndex) == "string") then
             tags = data
         elseif (type(firstIndex) == "table") then
-            componentList = data
+            SetComponentListData(data)
         elseif (TableContainsAnyIndex(data, ENTITY_DATA_INDEXES) == true) then
-            if (typeof(data.Instance) == "Instance" and instance ~= nil) then
-                instance = data.Instance
+            if (typeof(data.Instance) == "Instance") then
+                SetInstanceData(data.Instance)
             end
     
             if (type(data.Components) == "table") then
-                componentList = data.Components
+                SetComponentListData(data.Components)
             end
     
             if (type(data.UpdateEntity) == "boolean") then
                 updateEntity = data.UpdateEntity
             end
+
+            if (type(data.InitializeComponents) == "boolean") then
+                initializeComponents = data.InitializeComponents
+            end
     
             if (type(data.Tags) == "table") then
                 tags = data.Tags
             end
+
+            if (type(data.CFrame) == "CFrame") then
+                cframe = data.CFrame
+            elseif (type(data.CFrame) == "Vector3") then
+                cframe = CFrame.new(data.CFrame)
+            end
         else
-            componentList = data
+            SetComponentListData(data)
         end
     end
-
-    local entityData = {...}
 
     for _, eData in pairs(entityData) do
-        if (typeof(eData) == "Instance") then
-            instance = eData
-        elseif (type(eData) == "boolean") then
+        local eDType = type(eData)
+        local eDTypeOf = typeof(eData)
+
+        if (eDTypeOf == "Instance") then
+            SetInstanceData(eData)
+        elseif (eDType == "boolean") then
             updateEntity = eData
-        elseif (type(eData) == "table") then
+        elseif (eDType == "table") then
             SetData(eData)
+        elseif (eDType == "number") then
+            SetBoolData(eData)
+        elseif (eDTypeOf == "CFrame") then
+            cframe = eData
+        elseif (eDTypeOf == "Vector3") then
+            cframe = CFrame.new(eData)
         end
     end
 
-    
-    if (instance ~= nil) then
-        local entityInstanceComponentData = instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME)
+    assert(not (updateEntity == true and initializeComponents == false), "You must Initialize components if you are going to update the entity with systems!")
 
-        if (entityInstanceComponentData ~= nil) then
-            for _, componentInstanceData in pairs(entityInstanceComponentData:GetChildren()) do
-                local componentName = componentInstanceData.Name
-                local componentData = GetComponentDataFromInstance(componentInstanceData)
-                local currentComponentData = componentList[componentName]
+    return instance, componentList, tags, cframe, updateEntity, initializeComponents
+end
 
-                if (currentComponentData ~= nil) then
-                    componentData = TableMerge(componentData, currentComponentData)
-                end
 
-                componentList[componentName] = componentData
-            end
-        end
-    end
+function ECSWorld:CreateEntity(...)
+    local instance, componentList, tags, cframe, updateEntity, initializeComponents = GetEntityData({...})
 
     local entity = ECSEntity.new(instance, tags)
+
+    if (cframe ~= nil and entity.Instance:IsA("Model") == true and entity.Instance.PrimaryPart ~= nil) then
+        entity.Instance:SetPrimaryPartCFrame(cframe)
+    end
 
     local function AddComponentToEntity(entity, componentName, componentData)
         local newComponent = self:_CreateComponent(componentName, componentData)
     
         if (newComponent ~= nil) then
-            entity:AddComponent(componentName, newComponent)
+            entity:AddComponent(componentName, newComponent, initializeComponents)
         end
     end
 
@@ -269,17 +354,75 @@ function ECSWorld:CreateEntity(...)
 end
 
 
+local function GetResourceEntitiesData(resourceEntitiesData)
+    local parent = nil
+    local entitiesData = {}
+
+    for _, data in pairs(resourceEntitiesData) do
+        if (typeof(data) == "Instance") then
+            parent = data
+        elseif (type(data) == "table") then
+            entitiesData = data
+        end
+    end
+
+    return parent, entitiesData
+end
+
+
+function ECSWorld:CreateEntitiesFromResource(resource, ...)
+    assert(type(resource) == "table")
+    assert(resource._IsResource == true)
+
+    local parent, entitiesData = GetResourceEntitiesData({...})
+
+    local rootInstance, entityInstances = resource:Create()
+
+    local entities = {}
+
+    for _, instance in pairs(entityInstances) do
+        local entityData = entitiesData[instance.Name] or {}
+
+        if (instance == rootInstance and type(entitiesData.RootInstance) == "table") then
+            entityData = entitiesData.RootInstance
+        end
+
+        local entity = self:CreateEntity(instance, entityData, false, 2)
+
+        table.insert(entities, entity)
+    end
+
+    for _, entity in pairs(entities) do
+        entity:InitializeComponents()
+    end
+
+    for _, entity in pairs(entities) do
+        self:_UpdateEntity(entity)
+    end
+
+    if (typeof(parent) == "Instance" or parent == nil) then
+        rootInstance.Parent = parent
+    end
+
+    return rootInstance
+end
+
+
 function ECSWorld:_RemoveEntity(entity)
     if (entity._IsBeingRemoved ~= true) then
         entity._IsBeingRemoved = true   --set flag to true
 
         local registeredSystems = TableCopy(entity:GetRegisteredSystems())
 
-        for _, systemName in pairs(registeredSystems) do
-            local system = self:GetSystem(systemName)
-            if (system ~= nil) then
-                system:RemoveEntity(entity)
+        if (#registeredSystems > 0) then
+            for _, systemName in pairs(registeredSystems) do
+                local system = self:GetSystem(systemName)
+                if (system ~= nil) then
+                    system:RemoveEntity(entity)
+                end
             end
+        else
+            self:ForceRemoveEntity(entity)
         end
     end
 end
@@ -323,13 +466,13 @@ function ECSWorld:ForceRemoveEntity(entity)
 end
 
 
-function ECSWorld:_AddComponentToEntity(entity, componentName, componentData)
+function ECSWorld:_AddComponentToEntity(entity, componentName, componentData, initializeComponents)
     assert(type(componentName) == "string" and type(componentData) == "table")
 
     local newComponent = self:_CreateComponent(componentName, componentData)
 
     if (newComponent ~= nil) then
-        entity:AddComponent(componentName, newComponent)
+        entity:AddComponent(componentName, newComponent, initializeComponents)
     end
 end
 
@@ -341,13 +484,13 @@ function ECSWorld:_RemoveComponentFromEntity(entity, componentName)
 end
 
 
-function ECSWorld:AddComponentsToEntity(entity, componentList)
+function ECSWorld:AddComponentsToEntity(entity, componentList, initializeComponents)
     assert(entity ~= nil and type(entity) == "table" and entity.ClassName == "ECSEntity")
     assert(TableContains(self._Entities, entity) == true)
     assert(componentList ~= nil and type(componentList) == "table")
 
     for componentName, componentData in pairs(componentList) do
-        self:_AddComponentToEntity(entity, componentName, componentData)
+        self:_AddComponentToEntity(entity, componentName, componentData, initializeComponents)
     end
 
     self:_UpdateEntity(entity)
