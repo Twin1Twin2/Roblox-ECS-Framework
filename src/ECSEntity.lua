@@ -39,9 +39,9 @@ function ECSEntity:HasComponents(...)
 end
 
 
-function ECSEntity:ContainsInstance(instance) --redo
+function ECSEntity:ContainsInstance(instance)
     if (self.Instance ~= nil) then
-        return self.Instance:IsAncestorOf(instance)
+        return self.Instance == instance or self.Instance:IsAncestorOf(instance)
     end
 
     return false
@@ -94,22 +94,24 @@ function ECSEntity:RemoveComponent(componentName)
 end
 
 
-function ECSEntity:RegisterSystem(system)
-    local systemName = system.ClassName
-
+function ECSEntity:RegisterSystem(systemName)
     if (TableContains(self._RegisteredSystems, systemName) == false) then
         table.insert(self._RegisteredSystems, systemName)
     end
 end
 
 
-function ECSEntity:UnregisterSystem(system)
-    AttemptRemovalFromTable(self._RegisteredSystems, system.ClassName)
+function ECSEntity:UnregisterSystem(systemName)
+    local success = AttemptRemovalFromTable(self._RegisteredSystems, systemName)
 
     if (self._IsBeingRemoved == true) then
         if (#self._RegisteredSystems == 0) then
             if (self.World ~= nil) then
                 self.World:ForceRemoveEntity(self)
+            else
+                pcall(function()
+                    self:Destroy()
+                end)
             end
         end
     end
@@ -201,6 +203,12 @@ end
 
 
 function ECSEntity:Destroy()
+    if (self._IsBeingDestroyed == true) then
+        return
+    end
+
+    self._IsBeingDestroyed = true
+
     for componentName, component in pairs(self._Components) do
         self:RemoveComponent(componentName, component)
     end
@@ -231,6 +239,8 @@ function ECSEntity.new(instance, tags)
     self.Instance = instance
 
     self.World = nil
+    --self.ParentEntity = nil
+    --self.ChildrenEntities = {}
 
     self._Components = {}
     self._RegisteredSystems = {}
@@ -238,6 +248,7 @@ function ECSEntity.new(instance, tags)
     self._Tags = {}
 
     self._IsBeingRemoved = false    --flag
+    self._IsBeingDestroyed = false
 
     if (tags ~= nil) then
         self:AddTagsFromList(tags)
