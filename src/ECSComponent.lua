@@ -54,18 +54,16 @@ function ECSComponent.new(componentDesc, data)
     assert(type(data) == "table")
 
     local self = setmetatable({}, ECSComponent)
+    
+    AltMerge(self, componentDesc.Data)
+
+    local newSelf = componentDesc:Create(self, data)    --Create() might be easy to hack if someone modifies the module. Should a ComponentDesc be copied?
+    self = newSelf or self
 
     self._IsComponent = true
 
     self._ComponentName = componentDesc.ComponentName
     self._Destroy = DeepCopy(componentDesc.Destroy)
-    
-    AltMerge(self, componentDesc.Data)
-
-    local newData = componentDesc:Create(data)
-    newData = newData or data
-
-    AltMerge(self, data)
     
 
     return self
