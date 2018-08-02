@@ -31,6 +31,13 @@ local ECSComponentDescription = {
 ECSComponentDescription.__index = ECSComponentDescription
 
 
+local INDEX_BLACKLIST = {
+    ClassName = true;
+
+    _IsComponentDescription = true;
+}
+
+
 function ECSComponentDescription:Create(component, data)
     AltMerge(component, data)
 
@@ -49,8 +56,21 @@ end
 
 
 function ECSComponentDescription:Extend(name)
-    local this = ECSComponentDescription.new(name)
+    assert(type(name) == "string")
 
+    local this = {}
+
+    function this.new()
+        local t = ECSComponentDescription.new(name)
+
+        for index, value in pairs(this) do
+            if (INDEX_BLACKLIST[index] == nil) then
+                t[index] = DeepCopy(value)
+            end
+        end
+
+        return t
+    end
 
     return this
 end
