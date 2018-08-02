@@ -159,6 +159,7 @@ function ECSWorld:RegisterSystem(system)
         error("ECS World " .. self.Name .. " - System already registered with the name \"" .. systemName .. "\"!")
     end
 
+    system.World = self
     table.insert(self._Systems, system)
 
     if (#system.Components > 0) then
