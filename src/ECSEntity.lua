@@ -131,6 +131,11 @@ end
 
 --Tag System
 
+function ECSEntity:GetTags()
+    return self._Tags
+end
+
+
 function ECSEntity:HasTag(tagName)
     return TableContains(self._Tags, tagName)
 end
