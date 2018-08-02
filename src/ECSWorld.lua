@@ -43,7 +43,7 @@ local ECSWorld = {
 
 ECSWorld.__index = ECSWorld
 
-
+--[[
 function ECSWorld:GetEntityFromInstance(instance)   --need to redo
     for _, entity in pairs(self._Entities) do
         if (entity:ContainsInstance(instance) == true) then
@@ -53,7 +53,7 @@ function ECSWorld:GetEntityFromInstance(instance)   --need to redo
 
     return nil
 end
-
+--]]
 
 function ECSWorld:GetEntityFromInstance(instance)
     local currentEntity = nil
@@ -200,6 +200,18 @@ local function GetEntityData(entityData)
     local updateEntity = true
     local initializeComponents = true
 
+    local function AddTag(tagName)
+        if (TableContains(tags, tagName) == false) then
+            table.insert(tags, tagName)
+        end
+    end
+
+    local function SetTagsData(newTags)
+        for _, tagName in pairs(newTags) do
+            AddTag(tagName)
+        end
+    end
+
     local function SetComponentListData(newComponentList)
         for componentName, componentData in pairs(newComponentList) do
             local currentComponentData = componentList[componentName]
@@ -236,13 +248,14 @@ local function GetEntityData(entityData)
         end
 
         if (entityInstanceTagData ~= nil) then
+            local newTags = {}
+
             for _, tagInstanceData in pairs(entityInstanceTagData:GetChildren()) do
                 local tagName = tagInstanceData.Name
-
-                if (TableContains(tags) == false) then
-                    table.insert(tags, tagName)
-                end
+                table.insert(newTags, tagName)
             end
+
+            SetTagsData(newTags)
         end
     end
 
@@ -263,7 +276,7 @@ local function GetEntityData(entityData)
         local firstIndex = data[1]
 
         if (type(firstIndex) == "string") then
-            tags = data
+            SetTagsData(data)
         elseif (type(firstIndex) == "table") then
             SetComponentListData(data)
         elseif (TableContainsAnyIndex(data, ENTITY_DATA_INDEXES) == true) then
@@ -284,7 +297,7 @@ local function GetEntityData(entityData)
             end
     
             if (type(data.Tags) == "table") then
-                tags = data.Tags
+                SetTagsData(data.Tags)
             end
 
             if (type(data.CFrame) == "CFrame") then
@@ -305,6 +318,8 @@ local function GetEntityData(entityData)
             SetInstanceData(eData)
         elseif (eDType == "boolean") then
             updateEntity = eData
+        elseif (eDType == "string") then
+            AddTag(eData)
         elseif (eDType == "table") then
             SetData(eData)
         elseif (eDType == "number") then
@@ -357,16 +372,44 @@ end
 local function GetResourceEntitiesData(resourceEntitiesData)
     local parent = nil
     local entitiesData = {}
+    local tags = {}
 
-    for _, data in pairs(resourceEntitiesData) do
-        if (typeof(data) == "Instance") then
-            parent = data
-        elseif (type(data) == "table") then
+    local function AddTag(tagName)
+        if (TableContains(tags, tagName) == false) then
+            table.insert(tags, tagName)
+        end
+    end
+
+    local function SetTagsData(newTags)
+        for _, tagName in pairs(newTags) do
+            AddTag(tagName)
+        end
+    end
+
+    local function SetData(data)
+        local firstIndex = data[1]
+
+        if (type(firstIndex) == "string") then
+            SetTagsData(data)
+        else
             entitiesData = data
         end
     end
 
-    return parent, entitiesData
+    for _, data in pairs(resourceEntitiesData) do
+        local dTypeOf = typeof(data)
+        local dType = type(data)
+
+        if (dTypeOf == "Instance") then
+            parent = data
+        elseif (dType == "string") then
+            AddTag(eData)
+        elseif (dType == "table") then
+            SetData(data)
+        end
+    end
+
+    return parent, entitiesData, tags
 end
 
 
@@ -374,7 +417,7 @@ function ECSWorld:CreateEntitiesFromResource(resource, ...)
     assert(type(resource) == "table")
     assert(resource._IsResource == true)
 
-    local parent, entitiesData = GetResourceEntitiesData({...})
+    local parent, entitiesData, tags = GetResourceEntitiesData({...})
 
     local rootInstance, entityInstances = resource:Create()
 
@@ -387,7 +430,7 @@ function ECSWorld:CreateEntitiesFromResource(resource, ...)
             entityData = entitiesData.RootInstance
         end
 
-        local entity = self:CreateEntity(instance, entityData, false, 2)
+        local entity = self:CreateEntity(instance, entityData, tags, 2)
 
         table.insert(entities, entity)
     end
@@ -438,7 +481,11 @@ end
 
 
 function ECSWorld:RemoveEntitiesWithTag(tag)
-    for _, entity in pairs(self._Entities) do
+    assert(type(tag) == "string")
+    
+    local currentEntities = TableCopy(self._Entities)
+
+    for _, entity in pairs(currentEntities) do
         if (entity:HasTag(tag) == true) then
             self:_RemoveEntity(entity)
         end
@@ -449,7 +496,13 @@ end
 function ECSWorld:RemoveEntitiesWithTags(...)
     local tags = {...}
 
-    for _, entity in pairs(self._Entities) do
+    if (type(tags[1]) == "table") then
+        tags = tags[1]
+    end
+
+    local currentEntities = TableCopy(self._Entities)
+
+    for _, entity in pairs(currentEntities) do
         if (entity:HasTags(tags) == true) then
             self:_RemoveEntity(entity)
         end
