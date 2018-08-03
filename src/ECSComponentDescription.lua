@@ -45,7 +45,7 @@ function ECSComponentDescription:Create(component, data)
 end
 
 
-function ECSComponentDescription:Initialize(component)
+function ECSComponentDescription:Initialize(component, world)
     
 end
 

@@ -86,7 +86,7 @@ function ECSEntity:AddComponent(componentName, component, initializeComponents)
     self:_AddComponent(componentName, component)
 
     if (initializeComponents ~= false) then
-        component:Initialize()
+        component:Initialize(self.World)
     end
 end
 

@@ -70,10 +70,10 @@ function ECSComponent.new(componentDesc, data)
     self._ComponentName = componentDesc.ComponentName
     self._Destroy = DeepCopy(componentDesc.Destroy)
 
-    self.Initialize = function()
+    self.Initialize = function(world)
         if (self._IsInitialized == false) then
             self._IsInitialized = true
-            componentDesc:Initialize(self)
+            componentDesc:Initialize(self, world)
         end
     end
 
