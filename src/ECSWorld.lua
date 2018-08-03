@@ -347,6 +347,9 @@ function ECSWorld:CreateEntity(...)
         entity.Instance:SetPrimaryPartCFrame(cframe)
     end
 
+    entity.World = self
+    table.insert(self._Entities, entity)
+
     local function AddComponentToEntity(entity, componentName, componentData)
         local newComponent = self:_CreateComponent(componentName, componentData)
     
@@ -358,9 +361,6 @@ function ECSWorld:CreateEntity(...)
     for componentName, componentData in pairs(componentList) do
         AddComponentToEntity(entity, componentName, componentData)
     end
-
-    entity.World = self
-    table.insert(self._Entities, entity)
 
     if (updateEntity ~= false) then
         self:_UpdateEntity(entity)
