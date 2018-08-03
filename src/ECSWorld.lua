@@ -350,21 +350,7 @@ function ECSWorld:CreateEntity(...)
     entity.World = self
     table.insert(self._Entities, entity)
 
-    local function AddComponentToEntity(entity, componentName, componentData)
-        local newComponent = self:_CreateComponent(componentName, componentData)
-    
-        if (newComponent ~= nil) then
-            entity:AddComponent(componentName, newComponent, initializeComponents)
-        end
-    end
-
-    for componentName, componentData in pairs(componentList) do
-        AddComponentToEntity(entity, componentName, componentData)
-    end
-
-    if (updateEntity ~= false) then
-        self:_UpdateEntity(entity)
-    end
+    self:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
 
     return entity
 end
@@ -422,6 +408,14 @@ function ECSWorld:CreateEntitiesFromResource(resource, ...)
 
     local rootInstance, entityInstances = resource:Create()
 
+    if (resource.RootInstanceIsAnEntity == false) then
+        rootInstance.ChildRemoved:Connect(function(child)   --remove automatically if it has no children
+            if (#rootInstance:GetChildren() == 0) then
+                rootInstance:Destroy()
+            end
+        end)
+    end
+
     local entities = {}
 
     for _, instance in pairs(entityInstances) do
@@ -431,13 +425,7 @@ function ECSWorld:CreateEntitiesFromResource(resource, ...)
             entityData = entitiesData.RootInstance
         end
         
-        local entity = self:CreateEntity(instance, entityData,
-            {
-                UpdateEntity = false;
-                InitializeComponents = false;
-                Tags = tags;
-            }   
-        )
+        local entity = self:CreateEntity(instance, entityData, tags, 2)
 
         table.insert(entities, entity)
     end
@@ -537,6 +525,17 @@ function ECSWorld:_AddComponentToEntity(entity, componentName, componentData, in
 end
 
 
+function ECSWorld:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
+    for componentName, componentData in pairs(componentList) do
+        self:_AddComponentToEntity(entity, componentName, componentData, initializeComponents)
+    end
+
+    if (updateEntity ~= false) then
+        self:_UpdateEntity(entity)
+    end
+end
+
+
 function ECSWorld:_RemoveComponentFromEntity(entity, componentName)
     assert(type(componentName) == "string")
 
@@ -544,29 +543,32 @@ function ECSWorld:_RemoveComponentFromEntity(entity, componentName)
 end
 
 
-function ECSWorld:AddComponentsToEntity(entity, componentList, initializeComponents)
-    assert(entity ~= nil and type(entity) == "table" and entity.ClassName == "ECSEntity")
-    assert(TableContains(self._Entities, entity) == true)
-    assert(componentList ~= nil and type(componentList) == "table")
-
-    for componentName, componentData in pairs(componentList) do
-        self:_AddComponentToEntity(entity, componentName, componentData, initializeComponents)
-    end
-
-    self:_UpdateEntity(entity)
-end
-
-
-function ECSWorld:RemoveComponentsFromEntity(entity, componentList)
-    assert(entity ~= nil and type(entity) == "table" and entity.ClassName == "ECSEntity")
-    assert(TableContains(self._Entities, entity) == true)
-    assert(componentList ~= nil and type(componentList) == "table")
-
+function ECSWorld:_RemoveComponentsFromEntity(entity, componentList, updateEntity)
     for _, componentName in pairs(componentList) do
         self:_RemoveComponentFromEntity(entity, componentName)
     end
 
-    self:_UpdateEntity(entity)
+    if (updateEntity ~= false) then
+        self:_UpdateEntity(entity)
+    end
+end
+
+
+function ECSWorld:AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
+    assert(entity ~= nil and type(entity) == "table" and entity.ClassName == "ECSEntity")
+    assert(TableContains(self._Entities, entity) == true)
+    assert(componentList ~= nil and type(componentList) == "table")
+
+    self:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
+end
+
+
+function ECSWorld:RemoveComponentsFromEntity(entity, componentList, updateEntity)
+    assert(entity ~= nil and type(entity) == "table" and entity.ClassName == "ECSEntity")
+    assert(TableContains(self._Entities, entity) == true)
+    assert(componentList ~= nil and type(componentList) == "table")
+
+    self:_RemoveComponentsFromEntity(entity, componentList, updateEntity)
 end
 
 

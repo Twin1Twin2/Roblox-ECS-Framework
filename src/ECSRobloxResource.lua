@@ -32,11 +32,16 @@ local function ParsePath(rootInstance, path)
 end
 
 
+local function CanInstanceBeAnEntity(instance)
+    return instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME) ~= nil
+end
+
+
 local function GetEntityPathsFromInstance(instance, rootInstance, paths)
     paths = paths or {}
     rootInstance = rootInstance or instance
 
-    if (instance.Name ~= ENTITY_INSTANCE_COMPONENT_DATA_NAME and instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME) ~= nil) then
+    if (instance.Name ~= ENTITY_INSTANCE_COMPONENT_DATA_NAME and CanInstanceBeAnEntity(instance)) then
         local path = CompilePath(instance, rootInstance)
 
         table.insert(paths, path)
@@ -83,7 +88,9 @@ function ECSRobloxResource.new(instance)
     self.Resource = instance
     self.EntityPaths = GetEntityPathsFromInstance(instance)
 
+    self.RootInstanceIsAnEntity = CanInstanceBeAnEntity(instance)
     self._IsResource = true
+
 
 
     return self
