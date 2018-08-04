@@ -61,7 +61,7 @@ end
 function ECSEntity:InitializeComponents()
     for _, component in pairs(self._Components) do
         if (component._IsInitialized == false) then
-            component:Initialize()
+            component:Initialize(self)
         end
     end
 end
