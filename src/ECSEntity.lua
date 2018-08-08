@@ -58,10 +58,15 @@ function ECSEntity:GetComponent(componentName)
 end
 
 
+function ECSEntity:_InitializeComponent(component)
+    component:Initialize(self, self.World)
+end
+
+
 function ECSEntity:InitializeComponents()
     for _, component in pairs(self._Components) do
         if (component._IsInitialized == false) then
-            component:Initialize(self)
+            self:_InitializeComponent(component)
         end
     end
 end
@@ -72,7 +77,7 @@ function ECSEntity:_AddComponent(componentName, component)
 end
 
 
-function ECSEntity:AddComponent(componentName, component, initializeComponents)
+function ECSEntity:AddComponent(componentName, component, initializeComponent)
     assert(type(componentName) == "string")
     assert(type(component) == "table" and component._IsComponent == true)
 
@@ -85,8 +90,8 @@ function ECSEntity:AddComponent(componentName, component, initializeComponents)
 
     self:_AddComponent(componentName, component)
 
-    if (initializeComponents ~= false) then
-        component:Initialize(self.World)
+    if (initializeComponent ~= false) then
+        self:_InitializeComponent(component)
     end
 end
 
