@@ -31,22 +31,16 @@ local ECSComponent = {
 ECSComponent.__index = ECSComponent
 
 
-function ECSComponent:Initialize()
-    self._IsInitialized = true
-end
-
-
-function ECSComponent:_Destroy()
-
+function ECSComponent:Initialize(entity)
+    if (self._IsInitialized == false) then
+        self._IsInitialized = true
+        self._ComponentDescription:Initialize(self, entity)
+    end
 end
 
 
 function ECSComponent:Destroy()
-    self:_Destroy()
-    
-    if (self.Instance ~= nil) then
-        self.Instance:Destroy()
-    end
+    self._ComponentDescription:Destroy(self)
 
     setmetatable(self, nil)
 end
@@ -62,23 +56,15 @@ function ECSComponent.new(componentDesc, data)
     
     AltMerge(self, componentDesc.Data)
 
-    local newSelf = componentDesc:Create(self, data)    --Create() might be easy to hack if someone modifies the module. Should a ComponentDesc be copied?
+    local newSelf = componentDesc:Create(self, data)
     self = newSelf or self
 
     self._IsComponent = true
-
-    self._ComponentName = componentDesc.ComponentName
-    self._Destroy = DeepCopy(componentDesc.Destroy)
-
-    self.Initialize = function(entity)
-        if (self._IsInitialized == false) then
-            self._IsInitialized = true
-            componentDesc:Initialize(self, entity)
-        end
-    end
-
     self._IsInitialized = false
-    
+
+    self._ComponentDescription = componentDesc  --reference here yea b/c you can already get it from ecsworld
+    self._ComponentName = componentDesc.ComponentName
+
 
     return self
 end
