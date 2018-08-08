@@ -341,13 +341,12 @@ end
 function ECSWorld:CreateEntity(...)
     local instance, componentList, tags, cframe, updateEntity, initializeComponents = GetEntityData({...})
 
-    local entity = ECSEntity.new(instance, tags)
+    local entity = ECSEntity.new(self, instance, tags)
 
     if (cframe ~= nil and entity.Instance:IsA("Model") == true and entity.Instance.PrimaryPart ~= nil) then
         entity.Instance:SetPrimaryPartCFrame(cframe)
     end
 
-    entity.World = self
     table.insert(self._Entities, entity)
 
     self:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)

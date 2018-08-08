@@ -247,7 +247,7 @@ function ECSEntity:Destroy()
 end
 
 
-function ECSEntity.new(instance, tags)
+function ECSEntity.new(world, instance, tags)
     if (instance == nil) then
         instance = Instance.new("Model")
     end
@@ -259,7 +259,7 @@ function ECSEntity.new(instance, tags)
 
     self.Instance = instance
 
-    self.World = nil
+    self.World = world
     --self.ParentEntity = nil
     --self.ChildrenEntities = {}
 
