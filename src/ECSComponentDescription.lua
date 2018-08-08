@@ -50,7 +50,7 @@ function ECSComponentDescription:Initialize(component, entity)
 end
 
 
-function ECSComponentDescription:Destroy()
+function ECSComponentDescription:Destroy(component)
 
 end
 
