@@ -159,6 +159,12 @@ function ECSWorld:RegisterSystem(system)
         error("ECS World " .. self.Name .. " - System already registered with the name \"" .. systemName .. "\"!")
     end
 
+    for _, componentName in pairs(system.Components) do
+        if (self:_GetComponentDescription(componentName) == nil) then
+            warn("ECS World :: RegisterSystem() - [" .. systemName .. "] Component \"" .. componentName .. "\" is not registered!")
+        end
+    end
+
     system.World = self
     table.insert(self._Systems, system)
 
@@ -526,6 +532,11 @@ end
 
 function ECSWorld:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
     for componentName, componentData in pairs(componentList) do
+        if (type(componentData) == "string") then
+            componentName = componentData
+            componentData = {}
+        end
+        
         self:_AddComponentToEntity(entity, componentName, componentData, initializeComponents)
     end
 
