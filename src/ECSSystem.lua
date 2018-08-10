@@ -200,6 +200,7 @@ function ECSSystem.new(name, world)
     local self = setmetatable({}, ECSSystem)
 
     self._IsSystem = true
+    self._IsInitialized = false
 
     self.SystemName = name
 

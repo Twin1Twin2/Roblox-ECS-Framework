@@ -77,7 +77,9 @@ function ECSEngine.new(engineConfiguration)
         self.World.Name = engineConfiguration.WorldName
 
         self.World:RegisterComponentsFromList(engineConfiguration.Components)
-        self.World:RegisterSystemsFromList(engineConfiguration.Systems)
+        self.World:RegisterSystemsFromList(engineConfiguration.Systems, false)
+
+        self.World:InitializeSystems()
 
         self._RenderSteppedUpdateSystems = engineConfiguration.RenderSteppedSystems
         self._SteppedUpdateSystems = engineConfiguration.SteppedSystems

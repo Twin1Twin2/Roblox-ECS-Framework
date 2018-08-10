@@ -141,7 +141,32 @@ function ECSWorld:RegisterComponentsFromList(componentDescs)
 end
 
 
-function ECSWorld:RegisterSystem(system)
+function ECSWorld:_InitializeSystem(system)
+    for _, componentName in pairs(system.Components) do
+        if (self:_GetComponentDescription(componentName) == nil) then
+            warn("ECS World :: InitializeSystem() - [" .. systemName .. "] Component \"" .. componentName .. "\" is not registered!")
+        end
+    end
+
+    system:Initialize()
+    system._IsInitialized = true
+
+    if (#system.Components > 0) then
+        table.insert(self._EntitySystems, system)
+    end
+end
+
+
+function ECSWorld:InitializeSystems()
+    for _, system in pairs(self._Systems) do
+        if (system._IsInitialized == false) then
+            self:_InitializeSystem(system)
+        end
+    end
+end
+
+
+function ECSWorld:RegisterSystem(system, initializeSystem)
     if (typeof(system) == "Instance" and system:IsA("ModuleScript") == true) then
         local success, message = pcall(function()
             system = require(system)
@@ -159,20 +184,12 @@ function ECSWorld:RegisterSystem(system)
         error("ECS World " .. self.Name .. " - System already registered with the name \"" .. systemName .. "\"!")
     end
 
-    for _, componentName in pairs(system.Components) do
-        if (self:_GetComponentDescription(componentName) == nil) then
-            warn("ECS World :: RegisterSystem() - [" .. systemName .. "] Component \"" .. componentName .. "\" is not registered!")
-        end
-    end
-
     system.World = self
     table.insert(self._Systems, system)
 
-    if (#system.Components > 0) then
-        table.insert(self._EntitySystems, system)
+    if (initializeSystem ~= false) then
+        self:_InitializeSystem(system)
     end
-
-    system:Initialize()
 end
 
 
@@ -183,11 +200,11 @@ function ECSWorld:RegisterSystems(...)
 end
 
 
-function ECSWorld:RegisterSystemsFromList(systemDescs)
+function ECSWorld:RegisterSystemsFromList(systemDescs, initializeSystems)
     assert(type(systemDescs) == "table", "")
 
     for _, systemDesc in pairs(systemDescs) do
-        self:RegisterSystem(systemDesc)
+        self:RegisterSystem(systemDesc, initializeSystems)
     end
 end
 
