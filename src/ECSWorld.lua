@@ -604,7 +604,9 @@ function ECSWorld:_UpdateEntity(entity)  --update after it's components have cha
         return
     end
 
-    for _, systemName in pairs(entity:GetRegisteredSystems()) do
+    local registeredSystems = TableCopy(entity:GetRegisteredSystems())
+
+    for _, systemName in pairs(registeredSystems) do
         local system = self:GetSystem(systemName)
         
         if (system ~= nil and self:EntityBelongsInSystem(system, entity) == false) then
