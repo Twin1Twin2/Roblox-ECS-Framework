@@ -619,6 +619,8 @@ function ECSWorld:_UpdateEntity(entity)  --update after it's components have cha
             system:AddEntity(entity)
         end
     end
+
+    entity:Update()
 end
 
 

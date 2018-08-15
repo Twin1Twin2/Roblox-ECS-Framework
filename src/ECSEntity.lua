@@ -54,7 +54,7 @@ end
 
 
 function ECSEntity:GetComponent(componentName)
-    return self._Components[componentName]
+    return self._Components[componentName] or self._RemovedComponents[componentName]
 end
 
 
@@ -98,8 +98,7 @@ end
 
 function ECSEntity:_RemoveComponent(componentName, component)
     self._Components[componentName] = nil
-
-    component:Destroy()
+    self._RemovedComponents[componentName] = component
 end
 
 
@@ -216,6 +215,15 @@ function ECSEntity:RemoveTagsFromList(tags)
 end
 
 
+function ECSEntity:Update()
+    for componentName, component in pairs(self._RemovedComponents) do
+        component:Destroy()
+    end
+
+    self._RemovedComponents = {}
+end
+
+
 function ECSEntity:RemoveSelf()
     if (self.World ~= nil) then
         self.World:RemoveEntity(self)
@@ -264,6 +272,7 @@ function ECSEntity.new(world, instance, tags)
     --self.ChildrenEntities = {}
 
     self._Components = {}
+    self._RemovedComponents = {}
     self._RegisteredSystems = {}
 
     self._Tags = {}
