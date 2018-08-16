@@ -93,13 +93,15 @@ end
 function ECSWorld:_CreateComponent(componentName, data, instance)
     local componentDesc = self:_GetComponentDescription(componentName)
 
-    if (componentDesc ~= nil) then
-        local newComponent = ECSComponent.new(componentDesc, data, instance)
+    if (componentDesc == nil) then
+        warn("ECS World :: _CreateComponent() " .. self.Name .. " - Unable to find component with the name \"" .. componentName .. "\"")
 
-        return newComponent
+        return nil
     end
 
-    return nil
+    local newComponent = ECSComponent.new(componentDesc, data, instance)
+
+    return newComponent
 end
 
 
@@ -144,7 +146,7 @@ end
 function ECSWorld:_InitializeSystem(system)
     for _, componentName in pairs(system.Components) do
         if (self:_GetComponentDescription(componentName) == nil) then
-            warn("ECS World :: InitializeSystem() - [" .. systemName .. "] Component \"" .. componentName .. "\" is not registered!")
+            warn("ECS World :: InitializeSystem() - [" .. system.SystemName .. "] Component \"" .. componentName .. "\" is not registered!")
         end
     end
 

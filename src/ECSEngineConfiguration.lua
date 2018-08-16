@@ -41,7 +41,7 @@ end
 
 
 function ECSEngineConfiguration:AddSystem(system)
-    assert(type(system) == "table" and system._IsSystem == true)
+    assert(type(system) == "table" and system._IsSystem == true, "Object is not a system!")
 
     if (TableContains(self.Systems, system) == true) then
         return
