@@ -179,7 +179,7 @@ function ECSEngineConfiguration:AddHeartbeatSystemsFromList(systemsList)
 end
 
 
-function ECSEngineConfiguration.new(name)
+function ECSEngineConfiguration.new(name, isServer)
     local self = setmetatable({}, ECSEngineConfiguration)
 
     self.WorldName = name or "WORLD"
@@ -191,6 +191,12 @@ function ECSEngineConfiguration.new(name)
     self.RenderSteppedSystems = {}
     self.SteppedSystems = {}
     self.HeartbeatSystems = {}
+
+    self.IsServer = false
+
+    if (type(isServer) == "boolean") then
+        self.IsServer = isServer
+    end
 
 
     return self
