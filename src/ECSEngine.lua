@@ -1,9 +1,9 @@
 
+local RunService = game:GetService("RunService")
+
 local ECSWorld = require(script.Parent.ECSWorld)
 local ECSSystem = require(script.Parent.ECSSystem)
 local ECSEngineConfiguration = require(script.Parent.ECSEngineConfiguration)
-
-local RunService = game:GetService("RunService")
 
 
 local ECSEngine = {
@@ -47,7 +47,25 @@ end
 
 
 function ECSEngine:Destroy()
-    
+    if (self.World ~= nil) then
+        self.World:Destroy()
+    end
+
+    if (self._RenderSteppedUpdateConnection ~= nil) then
+        self._RenderSteppedUpdateConnection:Disconnect()
+    end
+
+    if (self._SteppedUpdateConnection ~= nil) then
+        self._SteppedUpdateConnection:Disconnect()
+    end
+
+    if (self._HeartbeatUpdateConnection ~= nil) then
+        self._HeartbeatUpdateConnection:Disconnect()
+    end
+
+    self.World = nil
+
+    setmetatable(self, nil)
 end
 
 
