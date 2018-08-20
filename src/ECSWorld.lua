@@ -633,6 +633,11 @@ function ECSWorld:UpdateEntity(entity)
 end
 
 
+function ECSWorld:Destroy()
+    
+end
+
+
 function ECSWorld.new(name)
     local self = setmetatable({}, ECSWorld)
 
