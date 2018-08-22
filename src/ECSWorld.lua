@@ -711,8 +711,6 @@ function ECSWorld:_CreateAndAddEntity(instance, componentList, tags, isServerSid
     table.insert(self._Entities, entity)
     self:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
 
-    self.OnEntityAdded:Fire(entity)
-
     return entity
 end
 
@@ -1094,8 +1092,6 @@ function ECSWorld.new(name, isServer, remoteEvent)
 
     self._RemoteEvent = nil
     self._RemoteEventConnection = nil
-
-    self.OnEntityAdded = Signal.new()
 
 
     if (isServer == true) then
