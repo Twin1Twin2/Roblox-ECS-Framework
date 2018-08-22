@@ -70,17 +70,37 @@ end
 
 
 function ECSEngine.new(engineConfiguration)
+    assert(type(engineConfiguration) == "table" and engineConfiguration.ClassName == "ECSEngineConfiguration")
+
     local self = setmetatable({}, ECSEngine)
 
-    self.World = ECSWorld.new()
+    local isServer = engineConfiguration.IsServer
+    local remoteEvent = engineConfiguration.RemoteEvent
+
+    self.World = ECSWorld.new(engineConfiguration.WorldName, isServer, remoteEvent)
     
     self._RenderSteppedUpdateSystems = {}
     self._SteppedUpdateSystems = {}
     self._HeartbeatUpdateSystems = {}
 
-    self._RenderSteppedUpdateConnection = RunService.RenderStepped:Connect(function(stepped)
-        self:RenderSteppedUpdate(stepped)
-    end)
+    self._RenderSteppedUpdateConnection = nil
+    self._SteppedUpdateConnection = nil
+    self._HeartbeatUpdateConnection = nil
+
+    self.World:RegisterComponentsFromList(engineConfiguration.Components)
+    self.World:RegisterSystemsFromList(engineConfiguration.Systems, false)
+
+    self.World:InitializeSystems()
+
+    self._RenderSteppedUpdateSystems = engineConfiguration.RenderSteppedSystems
+    self._SteppedUpdateSystems = engineConfiguration.SteppedSystems
+    self._HeartbeatUpdateSystems = engineConfiguration.HeartbeatSystems
+
+    if (isServer == false or isServer == nil) then  --assume client
+        self._RenderSteppedUpdateConnection = RunService.RenderStepped:Connect(function(stepped)
+            self:RenderSteppedUpdate(stepped)
+        end)
+    end
 
     self._SteppedUpdateConnection = RunService.Stepped:Connect(function(t, stepped)
         self:SteppedUpdate(t, stepped)
@@ -89,20 +109,7 @@ function ECSEngine.new(engineConfiguration)
     self._HeartbeatUpdateConnection = RunService.Heartbeat:Connect(function(stepped)
         self:HeartbeatUpdate(stepped)
     end)
-
-
-    if (engineConfiguration ~= nil and engineConfiguration.ClassName == "ECSEngineConfiguration") then
-        self.World.Name = engineConfiguration.WorldName
-
-        self.World:RegisterComponentsFromList(engineConfiguration.Components)
-        self.World:RegisterSystemsFromList(engineConfiguration.Systems, false)
-
-        self.World:InitializeSystems()
-
-        self._RenderSteppedUpdateSystems = engineConfiguration.RenderSteppedSystems
-        self._SteppedUpdateSystems = engineConfiguration.SteppedSystems
-        self._HeartbeatUpdateSystems = engineConfiguration.HeartbeatSystems
-    end
+    
 
     return self
 end

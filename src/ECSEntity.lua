@@ -277,6 +277,8 @@ function ECSEntity.new(world, instance, tags)
 
     self._Tags = {}
 
+    self._IsServerSide = false
+    
     self._IsBeingRemoved = false    --flag
     self._IsBeingDestroyed = false
 
