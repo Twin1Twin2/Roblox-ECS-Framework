@@ -120,26 +120,13 @@ function ECSWorld:WaitForEntityWithInstance(instance, maxWaitTime)   --idk how t
         return entity
     end
 
-    local entityAddedConnection = self.OnEntityAdded:Connect(function(newEntity)
-        if (newEntity.Instance == instance) then
-            entity = newEntity
-        end
-    end)
-
     --big old wait
-    if (maxWaitTime ~= nil) then
-        local startTime = tick()
+    local startTime = tick()
 
-        while (entity == nil and tick() - startTime < maxWaitTime) do
-            RunService.Heartbeat:Wait()
-        end
-    else
-        while (entity == nil) do
-            RunService.Heartbeat:Wait()
-        end
+    while (entity == nil and (maxWaitTime == nil or tick() - startTime < maxWaitTime)) do
+        RunService.Heartbeat:Wait()
+        entity = self:GetEntityFromInstance(instance) 
     end
-
-    entityAddedConnection:Disconnect()
 
     return entity
 end
