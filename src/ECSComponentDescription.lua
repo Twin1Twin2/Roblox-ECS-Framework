@@ -86,6 +86,8 @@ function ECSComponentDescription.new(name)
 
     self._IsComponentDescription = true
 
+    self.IsServerSide = nil
+
 
     return self
 end
