@@ -133,88 +133,6 @@ function ECSEntity:UnregisterSystem(systemName)
 end
 
 
---Tag System
-
-function ECSEntity:GetTags()
-    return self._Tags
-end
-
-
-function ECSEntity:HasTag(tagName)
-    return TableContains(self._Tags, tagName)
-end
-
-
-function ECSEntity:HasTags(...)
-    local tags = {...}
-    local hasAllTags = true
-
-    if (type(tags[1]) == "table") then
-        tags = tags[1]
-    end
-
-    if (#tags == 0) then
-        return false
-    end
-
-    for _, tagName in pairs(tags) do
-        if (self:HasTag(tagName) == false) then
-            hasAllTags = false
-        end
-    end
-
-    return hasAllTags
-end
-
-
-function ECSEntity:AddTag(tagName)
-    assert(type(tagName) == "string")
-
-    if (TableContains(self._Tags, tagName) == false) then
-        table.insert(self._Tags, tagName)
-    end
-end
-
-
-function ECSEntity:AddTags(...)
-    local tags = {...}
-
-    self:AddTagsFromList(tags)
-end
-
-
-function ECSEntity:AddTagsFromList(tags)
-    assert(type(tags) == "table")
-
-    for _, tagName in pairs(tags) do
-        self:AddTag(tagName)
-    end
-end
-
-
-function ECSEntity:RemoveTag(tagName)
-    assert(type(tagName) == "string")
-
-    AttemptRemovalFromTable(self._Tags, tagName)
-end
-
-
-function ECSEntity:RemoveTags(...)
-    local tags = {...}
-
-    self:RemoveTagsFromList(tags)
-end
-
-
-function ECSEntity:RemoveTagsFromList(tags)
-    assert(type(tags) == "table")
-
-    for _, tagName in pairs(tags) do
-        self:RemoveTag(tagName)
-    end
-end
-
-
 function ECSEntity:Update()
     for componentName, component in pairs(self._RemovedComponents) do
         component:Destroy()
@@ -255,13 +173,12 @@ function ECSEntity:Destroy()
 end
 
 
-function ECSEntity.new(world, instance, tags)
+function ECSEntity.new(world, instance)
     if (instance == nil) then
         instance = Instance.new("Model")
     end
 
     assert(typeof(instance) == "Instance")
-    assert(tags == nil or type(tags) == "table")
 
     local self = setmetatable({}, ECSEntity)
 
@@ -275,16 +192,10 @@ function ECSEntity.new(world, instance, tags)
     self._RemovedComponents = {}
     self._RegisteredSystems = {}
 
-    self._Tags = {}
-
     self._IsServerSide = false
     
     self._IsBeingRemoved = false    --flag
     self._IsBeingDestroyed = false
-
-    if (tags ~= nil) then
-        self:AddTagsFromList(tags)
-    end
 
 
     return self
