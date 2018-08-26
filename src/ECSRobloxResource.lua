@@ -1,12 +1,16 @@
 
-local ENTITY_INSTANCE_COMPONENT_DATA_NAME = "COMPONENTS"
-local ENTITY_INSTANCE_IS_PREFAB_FLAG_NAME = "IS_PREFAB"
-local PATH_SEPARATOR = "/"
+local Utilities = require(script.Parent.Utilities)
 
-local INVALID_NAMES = {
-    [ENTITY_INSTANCE_COMPONENT_DATA_NAME] = true;
-    [ENTITY_INSTANCE_IS_PREFAB_FLAG_NAME] = true;
-}
+local CanInstanceBeAnEntity = Utilities.CanInstanceBeAnEntity
+local CanInstanceBeAPrefab = Utilities.CanInstanceBeAPrefab
+
+local GetEntityInstancesFromInstance = Utilities.GetEntityInstancesFromInstance
+
+local ENTITY_INSTANCE_COMPONENT_DATA_NAME = Utilities.ENTITY_INSTANCE_COMPONENT_DATA_NAME
+local ENTITY_INSTANCE_PREFAB_DATA_NAME = Utilities
+local INVALID_NAMES = Utilities.INVALID_ENTITY_INSTANCE_NAMES
+
+local PATH_SEPARATOR = "/"
 
 
 local function CompilePath(instance, rootInstance, path)
@@ -38,65 +42,14 @@ local function ParsePath(rootInstance, path)
 end
 
 
-local function CanInstanceBeAnEntity(instance)
-    return instance:FindFirstChild(ENTITY_INSTANCE_IS_PREFAB_FLAG_NAME) == nil and instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME) ~= nil
-end
+local function GetEntityPathsFromInstance(instance)
+    local paths = {}
+    local entityInstances = GetEntityInstancesFromInstance(instance)
 
-
-local function CanInstanceBeAPrefab(instance)    --for prefabs
-    local isResource = false
-
-    local flag = instance:FindFirstChild(ENTITY_INSTANCE_IS_PREFAB_FLAG_NAME)
-    local resourceName = nil
-
-    if (flag ~= nil and flag:IsA("StringValue") == true) then
-        isResource = true
-        resourceName = flag.Value
-    end
-
-    return isResource, resourceName
-end
-
-
-local function GetEntityPathsFromInstance(instance, rootInstance, paths)
-    paths = paths or {}
-    rootInstance = rootInstance or instance
-
-    if (INVALID_NAMES[instance.Name] ~= true and CanInstanceBeAnEntity(instance) == true) then
-        local path = CompilePath(instance, rootInstance)
+    for _, entityInstance in pairs(entityInstances) do
+        local path = CompilePath(entityInstance, instance)
 
         table.insert(paths, path)
-    end
-
-    if (CanInstanceBeAPrefab(instance) == false) then
-        for _, child in pairs(instance:GetChildren()) do
-            GetEntityPathsFromInstance(child, rootInstance, paths)
-        end
-    end
-
-    return paths
-end
-
-
-local function GetPrefabPathsFromInstance(instance, rootInstance, paths)
-    paths = paths or {}
-    rootInstance = rootInstance or instance
-
-    if (INVALID_NAMES[instance.Name] ~= true) then
-        local canBePrefab, resourceName = CanInstanceBeAPrefab(instance)
-
-        if (canBePrefab == true) then
-            local pathData = {
-                ResourceName = resourceName;
-                Path = CompilePath(instance, rootInstance);
-            }
-
-            table.insert(paths, pathData)
-        end
-    end
-
-    for _, child in pairs(instance:GetChildren()) do
-        GetPrefabPathsFromInstance(child, rootInstance, paths)
     end
 
     return paths
@@ -108,9 +61,6 @@ local ECSRobloxResource = {
 }
 
 ECSRobloxResource.__index = ECSRobloxResource
-
-
-ECSRobloxResource.GetEntityPathsFromInstance = GetEntityPathsFromInstance
 
 
 function ECSRobloxResource:Create()
@@ -125,20 +75,7 @@ function ECSRobloxResource:Create()
         table.insert(entityInstances, entityInstance)
     end
 
-    for _, pathData in pairs(self.PrefabPaths) do
-        local resourceName = pathData.ResourceName
-        local path = pathData.Path
-        local prefabInstance = ParsePath(newInstance, path)
-
-        local data = {
-            Instance = prefabInstance;
-            ResourceName = resourceName;
-        }
-
-        table.insert(prefabData, data)
-    end
-
-    return newInstance, entityInstances, prefabData
+    return newInstance, entityInstances
 end
 
 
@@ -151,7 +88,6 @@ function ECSRobloxResource.new(instance, name)
     self.ResourceName = name or "DEFAULT_RESOURCE_NAME"
 
     self.EntityPaths = GetEntityPathsFromInstance(instance)
-    self.PrefabPaths = GetPrefabPathsFromInstance(instance)   --for better prefabs
 
     self.IsRootInstanceAnEntity = CanInstanceBeAnEntity(instance)
 
