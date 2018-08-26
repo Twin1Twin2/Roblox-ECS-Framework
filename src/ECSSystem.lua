@@ -213,6 +213,8 @@ function ECSSystem.new(name, world)
     self.Components = {}    --the names of the components this system needs
     self.Entities = {}
 
+    self.IsServerSide = nil
+
 
     return self
 end
