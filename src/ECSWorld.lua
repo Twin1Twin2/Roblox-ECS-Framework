@@ -11,7 +11,7 @@ local ECSSystem = require(script.Parent.ECSSystem)
 
 local Table = require(script.Parent.Table)
 local Signal = require(script.Parent.Signal)
-local GetComponentDataFromInstance = require(script.Parent.GetComponentDataFromInstance)
+local Utilities = require(script.Parent.Utilities)
 
 local TableContains = Table.Contains
 local TableMerge = Table.Merge
@@ -19,25 +19,21 @@ local TableCopy = Table.Copy
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
 local TableContainsAnyIndex = Table.TableContainsAnyIndex
 
-local COMPONENT_DESC_CLASSNAME = "ECSComponentDescription"
-local SYSTEM_CLASSNAME = "ECSSystem"
-local ENTITY_INSTANCE_COMPONENT_DATA_NAME = "COMPONENTS"
-local ENTITY_INSTANCE_TAG_DATA_NAME = "TAGS"
+local GetComponentsDataFromEntityInstance = Utilities.GetComponentsDataFromEntityInstance
+local MergeComponentData = Utilities.MergeComponentData
+local GetEntityInstancesFromInstance = Utilities.GetEntityInstancesFromInstance
 
-local ENTITY_DATA_INDEXES = {
-    "Instance";
-    "Components";
-    "Tags";
-    "UpdateEntity";
-    "CFrame";
-}
+local COMPONENT_DESC_CLASSNAME = Utilities.COMPONENT_DESC_CLASSNAME
+local SYSTEM_CLASSNAME = Utilities.SYSTEM_CLASSNAME
+local ENTITY_INSTANCE_COMPONENT_DATA_NAME = Utilities.ENTITY_INSTANCE_COMPONENT_DATA_NAME
 
 local REMOTE_EVENT_PLAYER_READY = 0
 local REMOTE_EVENT_ENTITY_CREATE = 1
 local REMOTE_EVENT_ENTITY_REMOVE = 2
 local REMOTE_EVENT_ENTITY_ADD_COMPONENTS = 3
 local REMOTE_EVENT_ENTITY_REMOVE_COMPONENTS = 4
-local REMOTE_EVENT_RESOURCE_CREATE = 5
+local REMOTE_EVENT_ENTITY_CREATE_FROM_INSTANCE = 5
+local REMOTE_EVENT_RESOURCE_CREATE = 6
 
 
 local function GetCFrameFromInstance(instance)
@@ -69,17 +65,6 @@ local ECSWorld = {
 
 ECSWorld.__index = ECSWorld
 
---[[
-function ECSWorld:GetEntityFromInstance(instance)   --need to redo
-    for _, entity in pairs(self._Entities) do
-        if (entity:ContainsInstance(instance) == true) then
-            return entity
-        end
-    end
-
-    return nil
-end
---]]
 
 function ECSWorld:GetEntityFromInstance(instance)
     for _, entity in pairs(self._Entities) do
@@ -181,6 +166,17 @@ function ECSWorld:RegisterComponent(componentDesc)
         warn("ECS World " .. self.Name .. " - Component already registered with the name " .. componentName)
     end
 
+    local isComponentServerSide = componentDesc.IsServerSide
+
+    if (isComponentServerSide ~= nil and isComponentServerSide ~= self._IsServer) then
+        if (isComponentServerSide == true) then
+            warn("ECS World " .. self.Name .. " - Component is Server-Side Only! " .. componentName)
+        else
+            warn("ECS World " .. self.Name .. " - Component is Client-Side Only! " .. componentName)
+        end
+        return
+    end
+
     self._RegisteredComponents[componentName] = componentDesc
 end
 
@@ -244,6 +240,17 @@ function ECSWorld:RegisterSystem(system, initializeSystem)
         error("ECS World " .. self.Name .. " - System already registered with the name \"" .. systemName .. "\"!")
     end
 
+    local isSystemServerSide = system.IsServerSide
+
+    if (isSystemServerSide ~= nil and isSystemServerSide ~= self._IsServer) then
+        if (isSystemServerSide == true) then
+            warn("ECS World " .. self.Name .. " - System is Server-Side Only! " .. systemName)
+        else
+            warn("ECS World " .. self.Name .. " - System is Client-Side Only! " .. systemName)
+        end
+        return
+    end
+
     system.World = self
     table.insert(self._Systems, system)
 
@@ -276,442 +283,65 @@ function ECSWorld:EntityBelongsInSystem(system, entity)
 end
 
 
-local function GetEntityDataFromInstance(instance)
-    local entityInstanceComponentData = instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME)
-    local entityInstanceTagData = instance:FindFirstChild(ENTITY_INSTANCE_TAG_DATA_NAME)
-
-    local componentList = {}
-    local tags = {}
-
-    if (entityInstanceComponentData ~= nil) then
-        for _, componentInstanceData in pairs(entityInstanceComponentData:GetChildren()) do
-            local componentName = componentInstanceData.Name
-            componentList[componentName] = GetComponentDataFromInstance(componentInstanceData)
-        end
-    end
-
-    if (entityInstanceTagData ~= nil) then
-        for _, tagInstanceData in pairs(entityInstanceTagData:GetChildren()) do
-            local tagName = tagInstanceData.Name
-            table.insert(tags, tagName)
-        end
-    end
-
-    return componentList, tags
-end
-
-
-function ECSWorld:IsResource(resource)
-    return (type(resource) == "table" and resource._IsResource == true)
-end
-
-
-function ECSWorld:GetResource(resourceName)
-    return self._RegisteredResources[resourceName]
-end
-
-
-function ECSWorld:RegisterResource(resource, resourceName)    --register for prefabs resources
-    assert(self:IsResource(resource) == true)
-    
-    if (TableContains(self._RegisteredResources, resource) == true) then
-        return
-    end
-
-    resourceName = resourceName or resource.ResourceName
-
-    local otherResource = self:GetResource(resourceName)
-
-    if (otherResource ~= nil) then
-        error("Resource already registered with the name " .. resourceName)
-    end
-
-    self._RegisteredResources[resourceName] = resource
-end
-
-
-function ECSWorld:_CreateEntityFromResource(resource, data, isServerSideEntity, updateAndInitializeResource, parentPrefabNames)
-    if (type(resource) == "string") then
-        local resourceName = resource
-        resource = self:GetResource(resourceName)
-        assert(resource ~= nil, "Resource with the name " .. resourceName .. " not found!")
-    else
-        assert(self:IsResource(resource) == true)
-    end
-
-    local rootInstance, entityInstances, resourcePrefabData = resource:Create()
-
-    if (resource.IsRootInstanceAnEntity == false) then
-        rootInstance.ChildRemoved:Connect(function(child)   --remove automatically if it has no children
-            if (#rootInstance:GetChildren() == 0) then
-                rootInstance:Destroy()
-            end
-        end)
-    end
-
-    local entities = {}
-
-    for _, instance in pairs(entityInstances) do
-        local entity = self:_CreateAndAddEntity(instance, {}, {}, isServerSideEntity, false, false)
-
-        table.insert(entities, entity)
-    end
-
-    --[[
-    for _, prefabData in pairs(resourcePrefabData) do
-        local instance = data.Instance
-        local resourceName = data.ResourceName
-        local resourceData
-
-        local prefabRootInstance, prefabEntities = self:_CreateEntityFromResource(resourceName, resourceData, false)
-
-        for _, prefabEntity in pairs(prefabEntities) do
-            table.insert(entities, prefabEntity)
-        end
-    end
-    --]]
-
-    if (updateAndInitializeResource == true) then
-        for _, entity in pairs(entities) do
-            entity:InitializeComponents()
-        end
-
-        for _, entity in pairs(entities) do
-            self:_UpdateEntity(entity)
-        end
-    end
-
-    return rootInstance, entities, entityInstances
-end
-
-
-local function CreateEntityFromResource_Server(resource, parent, isServerSideEntity)
-    if (isServerSideEntity ~= true) then
-        if (parent ~= nil) then
-            assert(IsValidParentForServerClientEntity(parent) == true)
-        else
-            parent = ReplicatedStorage
-        end
-    end
-
-    local rootInstance, entities = self:_CreateEntityFromResource(resource, nil, isServerSideEntity, true)
-
-    rootInstance.Parent = parent
-
-    if (isServerSideEntity ~= true and self._RemoteEvent ~= nil) then
-        for _, entity in pairs(entities) do
-            self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_CREATE, entity.Instance, nil, nil)
-        end
-    end
-
-    return rootInstance, entities
-end
-
-
-local function CreateEntityFromResource_Client(resource, parent)
-    local rootInstance, entities = self:_CreateEntityFromResource(resource, nil, false, true)
-
-    if (parent ~= nil) then
-        rootInstance.Parent = parent
-    end
-
-    return rootInstance, entities
-end
-
---[[
-local function GetEntityData(entityData)
-    local instance = nil
-    local componentList = {}
-    local tags = {}
-    local cframe = nil
-    local updateEntity = true
-    local initializeComponents = true
-
-    local function AddTag(tagName)
-        if (TableContains(tags, tagName) == false) then
-            table.insert(tags, tagName)
-        end
-    end
-
-    local function SetTagsData(newTags)
-        for _, tagName in pairs(newTags) do
-            AddTag(tagName)
-        end
-    end
-
-    local function SetComponentListData(newComponentList)
-        for componentName, componentData in pairs(newComponentList) do
-            local currentComponentData = componentList[componentName]
-            if (currentComponentData == nil) then
-                componentList[componentName] = componentData
-            else
-                componentList[componentName] = TableMerge(currentComponentData, componentData)
-            end
-        end
-    end
-
-    local function SetInstanceData(newInstance)
-        if (instance ~= nil) then
-            local newCFrame = GetCFrameFromInstance(newInstance)
-            if (newCFrame ~= nil) then
-                cframe = newCFrame
-            end
-        end
-
-        instance = newInstance
-
-        local entityInstanceComponentData = instance:FindFirstChild(ENTITY_INSTANCE_COMPONENT_DATA_NAME)
-        local entityInstanceTagData = instance:FindFirstChild(ENTITY_INSTANCE_TAG_DATA_NAME)
-
-        if (entityInstanceComponentData ~= nil) then
-            local newComponentList = {}
-
-            for _, componentInstanceData in pairs(entityInstanceComponentData:GetChildren()) do
-                local componentName = componentInstanceData.Name
-                newComponentList[componentName] = GetComponentDataFromInstance(componentInstanceData)
-            end
-
-            SetComponentListData(newComponentList)
-        end
-
-        if (entityInstanceTagData ~= nil) then
-            local newTags = {}
-
-            for _, tagInstanceData in pairs(entityInstanceTagData:GetChildren()) do
-                local tagName = tagInstanceData.Name
-                table.insert(newTags, tagName)
-            end
-
-            SetTagsData(newTags)
-        end
-    end
-
-    local function SetBoolData(enum)
-        if (enum == 0) then
-            updateEntity = true
-            initializeComponents = true
-        elseif (enum == 1) then
-            updateEntity = false
-            initializeComponents = true
-        elseif (enum == 2) then
-            updateEntity = false
-            initializeComponents = false
-        end
-    end
-
-    local function SetData(data)
-        local firstIndex = data[1]
-
-        if (type(firstIndex) == "string") then
-            SetTagsData(data)
-        elseif (type(firstIndex) == "table") then
-            SetComponentListData(data)
-        elseif (TableContainsAnyIndex(data, ENTITY_DATA_INDEXES) == true) then
-            if (typeof(data.Instance) == "Instance") then
-                SetInstanceData(data.Instance)
-            end
-    
-            if (type(data.Components) == "table") then
-                SetComponentListData(data.Components)
-            end
-    
-            if (type(data.UpdateEntity) == "boolean") then
-                updateEntity = data.UpdateEntity
-            end
-
-            if (type(data.InitializeComponents) == "boolean") then
-                initializeComponents = data.InitializeComponents
-            end
-    
-            if (type(data.Tags) == "table") then
-                SetTagsData(data.Tags)
-            end
-
-            if (type(data.CFrame) == "CFrame") then
-                cframe = data.CFrame
-            elseif (type(data.CFrame) == "Vector3") then
-                cframe = CFrame.new(data.CFrame)
-            end
-        else
-            SetComponentListData(data)
-        end
-    end
-
-    for _, eData in pairs(entityData) do
-        local eDType = type(eData)
-        local eDTypeOf = typeof(eData)
-
-        if (eDTypeOf == "Instance") then
-            SetInstanceData(eData)
-        elseif (eDType == "boolean") then
-            updateEntity = eData
-        elseif (eDType == "string") then
-            AddTag(eData)
-        elseif (eDType == "table") then
-            SetData(eData)
-        elseif (eDType == "number") then
-            SetBoolData(eData)
-        elseif (eDTypeOf == "CFrame") then
-            cframe = eData
-        elseif (eDTypeOf == "Vector3") then
-            cframe = CFrame.new(eData)
-        end
-    end
-
-    assert(not (updateEntity == true and initializeComponents == false), "You must Initialize components if you are going to update the entity with systems!")
-
-    return instance, componentList, tags, cframe, updateEntity, initializeComponents
-end
-
-
-function ECSWorld:CreateEntity(...)
-    local instance, componentList, tags, cframe, updateEntity, initializeComponents = GetEntityData({...})
-
-    local entity = ECSEntity.new(self, instance, tags)
-
-    if (cframe ~= nil and entity.Instance:IsA("Model") == true and entity.Instance.PrimaryPart ~= nil) then
-        entity.Instance:SetPrimaryPartCFrame(cframe)
-    end
-
-    table.insert(self._Entities, entity)
-
-    self:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
-
-    return entity
-end
-
-
-local function GetResourceEntitiesData(resourceEntitiesData)
-    local parent = nil
-    local entitiesData = {}
-    local tags = {}
-
-    local function AddTag(tagName)
-        if (TableContains(tags, tagName) == false) then
-            table.insert(tags, tagName)
-        end
-    end
-
-    local function SetTagsData(newTags)
-        for _, tagName in pairs(newTags) do
-            AddTag(tagName)
-        end
-    end
-
-    local function SetData(data)
-        local firstIndex = data[1]
-
-        if (type(firstIndex) == "string") then
-            SetTagsData(data) 
-        else
-            entitiesData = data
-        end
-    end
-
-    for _, data in pairs(resourceEntitiesData) do
-        local dTypeOf = typeof(data)
-        local dType = type(data)
-
-        if (dTypeOf == "Instance") then
-            parent = data
-        elseif (dType == "string") then
-            AddTag(data)
-        elseif (dType == "table") then
-            SetData(data)
-        end
-    end
-    
-    return parent, entitiesData, tags
-end
-
-
-function ECSWorld:CreateEntitiesFromResource(resource, ...)
-    assert(type(resource) == "table")
-    assert(resource._IsResource == true)
-
-    local parent, entitiesData, tags = GetResourceEntitiesData({...})
-
-    local rootInstance, entityInstances = resource:Create()
-
-    if (resource.RootInstanceIsAnEntity == false) then
-        rootInstance.ChildRemoved:Connect(function(child)   --remove automatically if it has no children
-            if (#rootInstance:GetChildren() == 0) then
-                rootInstance:Destroy()
-            end
-        end)
-    end
-
-    local entities = {}
-
-    for _, instance in pairs(entityInstances) do
-        local entityData = entitiesData[instance.Name] or {}
-
-        if (instance == rootInstance and type(entitiesData.RootInstance) == "table") then
-            entityData = entitiesData.RootInstance
-        end
-        
-        local entity = self:CreateEntity(instance, entityData, tags, 2)
-
-        table.insert(entities, entity)
-    end
-
-    for _, entity in pairs(entities) do
-        entity:InitializeComponents()
-    end
-
-    for _, entity in pairs(entities) do
-        self:_UpdateEntity(entity)
-    end
-
-    if (typeof(parent) == "Instance" or parent == nil) then
-        rootInstance.Parent = parent
-    end
-
-    return rootInstance, entities
-end
---]]
-
 function ECSWorld:_CanUpdateEntityForClients(entity)
     return entity._IsServerSide ~= true and self._RemoteEvent ~= nil
 end
 
 
-function ECSWorld:_CreateAndAddEntity(instance, componentList, tags, isServerSide, updateEntity, initializeComponents)
-    componentList = componentList or {}
-    tags = tags or {}
-
-    if (isServerSide == nil) then
-        isServerSide = false
+function ECSWorld:_CheckIsServerSideValue(isServerSide)
+    if (self._IsServer == false) then
+        return false
+    elseif (isServerSide == true) then
+        return isServerSide
     end
 
-    if (instance ~= nil) then
-        assert(typeof(instance) == "Instance")
+    return self._RemoteEvent == nil --if nil, it can only e serverside
+end
 
-        local instanceComponentList, instanceTags = GetEntityDataFromInstance(instance)
 
-        for componentName, componentData in pairs(instanceComponentList) do
-            local currentComponentData = componentList[componentName]
-            if (currentComponentData == nil) then
-                componentList[componentName] = componentData
-            else
-                componentList[componentName] = TableMerge(currentComponentData, componentData)
-            end
-        end
+function ECSWorld:_SetEntitiesIsServerSide(entities, isServerSide)
+    isServerSide = self:_CheckIsServerSideValue(isServerSide)
 
-        for _, tagName in pairs(instanceTags) do
-            if (TableContains(tags, tagName) == false) then
-                table.insert(tags, tagName)
-            end
-        end
+    for _, entity in pairs(entities) do
+        entity.IsServerSide = isServerSide
     end
 
-    local entity = ECSEntity.new(self, instance, tags)
-    entity._IsServerSide = isServerSide
+    return isServerSide
+end
+
+
+function ECSWorld:_CreateAndAddEntity(instance, componentList)
+    local entity = ECSEntity.new(self, instance)
 
     table.insert(self._Entities, entity)
-    self:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
+    self:_AddComponentsToEntity(entity, componentList, false, false)
 
     return entity
+end
+
+
+function ECSWorld:_CreateAndAddEntityWithData(instance, componentList)
+    local instanceComponentData = GetComponentsDataFromEntityInstance(instance)
+    instanceComponentData = MergeComponentData(instanceComponentData, componentList)
+
+    local entity = self:_CreateAndAddEntity(instance, instanceComponentData)
+
+    return entity
+end
+
+
+function ECSWorld:_CreateEntity()
+    --nothing
+end
+
+
+function ECSWorld:CreateEntity(instance, componentList, isServerSideEntity)
+    assert(instance == nil or typeof(instance) == "Instance")
+
+    componentList = componentList or {}
+    assert(type(componentList) == "table")
+
+    return self:_CreateEntity(instance, componentList, isServerSideEntity)
 end
 
 
@@ -735,29 +365,52 @@ function ECSWorld:_RemoveEntity(entity)
 end
 
 
-local function CreateEntity_Server(self, instance, componentList, tags, isServerSideEntity)
-    assert(instance == nil or typeof(instance) == "Instance")
-    componentList = componentList or {}
+function ECSWorld:ForceRemoveEntity(entity)
+    AttemptRemovalFromTable(self._Entities, entity)
 
-    if (isServerSideEntity == nil) then
-        isServerSideEntity = false
+    pcall(function()
+        entity:Destroy()
+    end)
+end
+
+
+function ECSWorld:_InitializeEntity(entity)
+    entity:InitializeComponents()
+    self:_UpdateEntity(entity)
+end
+
+
+function ECSWorld:_InitializeEntitiesFromList(entities)
+    for _, entity in pairs(entities) do
+        entity:InitializeComponents()
     end
+
+    for _, entity in pairs(entities) do
+        self:_UpdateEntity(entity)
+    end
+end
+
+
+local function CreateEntity_Server(self, instance, componentList, isServerSideEntity)
+    componentList = componentList or {}
 
     if (isServerSideEntity == false and instance ~= nil) then
         assert(IsInstanceVisibleByClient(instance) == true, "Instance is not visible by the client. Consider parenting it in ReplicatedStorage")
     end
 
-    local entity = self:_CreateAndAddEntity(instance, componentList, tags, isServerSideEntity)
+    local entity = self:_CreateAndAddEntityWithData(instance, componentList)
 
-    --add entity to clients    
-    if (self:_CanUpdateEntityForClients(entity) == true) then
+    entity._IsServerSide = self:_CheckIsServerSideValue(isServerSideEntity)
+
+    self:_InitializeEntity(entity)
+
+    --add entity to clients 
+    if (isServerSideEntity == false) then
         if (instance == nil) then
             entity.Instance.Parent = ReplicatedStorage
         end
 
-        self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_CREATE, entity.Instance, componentList, tags)
-    else
-        entity._IsServerSide = true
+        self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_CREATE, entity.Instance, componentList)
     end
 
     return entity
@@ -806,10 +459,12 @@ local function RemoveComponentsFromEntity_Server(self, entity, componentList, up
 end
 
 
-local function CreateEntity_Client(self, instance, componentList, tags)
+local function CreateEntity_Client(self, instance, componentList)
     componentList = componentList or {}
 
-    local entity = self:_CreateAndAddEntity(instance, componentList, tags)
+    local entity = self:_CreateAndAddEntityWithData(instance, componentList)
+
+    self:_InitializeEntity(entity)
 
     return entity
 end
@@ -838,16 +493,12 @@ local function RemoveComponentsFromEntity_Client(self, entity, componentList, up
 end
 
 
-local function EntityCreatedFromServer(self, instance, componentList, tags)
-    print("Entity created from server! Instance =", instance)
-
-    local entity = self:_CreateAndAddEntity(instance, componentList, tags)
-
-    return entity
+local function EntityCreatedFromServer_Client(self, instance, componentList)
+    self:_CreateEntity(instance, componentList)
 end
 
 
-local function EntityRemovedFromServer(self, instance)
+local function EntityRemovedFromServer_Client(self, instance)
     local entity = self:GetEntityFromInstance(instance)
 
     if (entity ~= nil) then
@@ -856,7 +507,7 @@ local function EntityRemovedFromServer(self, instance)
 end
 
 
-local function EntityAddedComponentsFromServer(self, instance, componentList)
+local function EntityAddedComponentsFromServer_Client(self, instance, componentList)
     local entity = self:GetEntityFromInstance(instance)
 
     if (entity ~= nil) then
@@ -865,67 +516,12 @@ local function EntityAddedComponentsFromServer(self, instance, componentList)
 end
 
 
-local function EntityRemovedComponentsFromServer(self, instance, componentList)
+local function EntityRemovedComponentsFromServer_Client(self, instance, componentList)
     local entity = self:GetEntityFromInstance(instance)
 
     if (entity ~= nil) then
         self:_RemoveComponentsFromEntity(entity, componentList)
     end
-end
-
-
-local function ResourceCreatedFromServer(self, instances, data)
-    for _, instance in pairs(instances) do
-        EntityCreatedFromServer(self, instance)
-    end
-end
-
---[[
-function ECSWorld:RemoveEntity(entity)
-    if (TableContains(self._Entities, entity) == false) then
-        return
-    end
-
-    self:_RemoveEntity(entity)
-end
---]]
-
-function ECSWorld:RemoveEntitiesWithTag(tag)
-    assert(type(tag) == "string")
-    
-    local currentEntities = TableCopy(self._Entities)
-
-    for _, entity in pairs(currentEntities) do
-        if (entity:HasTag(tag) == true) then
-            self:_RemoveEntity(entity)
-        end
-    end
-end
-
-
-function ECSWorld:RemoveEntitiesWithTags(...)
-    local tags = {...}
-
-    if (type(tags[1]) == "table") then
-        tags = tags[1]
-    end
-
-    local currentEntities = TableCopy(self._Entities)
-
-    for _, entity in pairs(currentEntities) do
-        if (entity:HasTags(tags) == true) then
-            self:_RemoveEntity(entity)
-        end
-    end
-end
-
-
-function ECSWorld:ForceRemoveEntity(entity)
-    AttemptRemovalFromTable(self._Entities, entity)
-
-    pcall(function()
-        entity:Destroy()
-    end)
 end
 
 
@@ -940,14 +536,18 @@ function ECSWorld:_AddComponentToEntity(entity, componentName, componentData, in
 end
 
 
-function ECSWorld:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
+function ECSWorld:_AddComponentsToEntity(entity, componentList, initializeComponents, updateEntity)
     for componentName, componentData in pairs(componentList) do
         if (type(componentData) == "string") then
             componentName = componentData
             componentData = {}
         end
         
-        self:_AddComponentToEntity(entity, componentName, componentData, initializeComponents)
+        self:_AddComponentToEntity(entity, componentName, componentData, false)
+    end
+
+    if (initializeComponents ~= false) then
+        entity:InitializeComponents()
     end
 
     if (updateEntity ~= false) then
@@ -973,24 +573,6 @@ function ECSWorld:_RemoveComponentsFromEntity(entity, componentList, updateEntit
     end
 end
 
---[[
-function ECSWorld:AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
-    assert(entity ~= nil and type(entity) == "table" and entity.ClassName == "ECSEntity")
-    assert(TableContains(self._Entities, entity) == true)
-    assert(componentList ~= nil and type(componentList) == "table")
-
-    self:_AddComponentsToEntity(entity, componentList, updateEntity, initializeComponents)
-end
-
-
-function ECSWorld:RemoveComponentsFromEntity(entity, componentList, updateEntity)
-    assert(entity ~= nil and type(entity) == "table" and entity.ClassName == "ECSEntity")
-    assert(TableContains(self._Entities, entity) == true)
-    assert(componentList ~= nil and type(componentList) == "table")
-
-    self:_RemoveComponentsFromEntity(entity, componentList, updateEntity)
-end
---]]
 
 function ECSWorld:_UpdateEntity(entity)  --update after it's components have changed or it was just added
     if (entity._IsBeingRemoved == true) then
@@ -1021,6 +603,214 @@ function ECSWorld:UpdateEntity(entity)
     assert(TableContains(self._Entities, entity) == true)
 
     self:_UpdateEntity(entity)
+end
+
+
+function ECSWorld:IsResource(resource)
+    return (type(resource) == "table" and resource._IsResource == true)
+end
+
+
+function ECSWorld:GetResource(resourceName)
+    return self._RegisteredResources[resourceName]
+end
+
+
+function ECSWorld:GetResourceFromObject(resource)
+    if (self:IsResource(resource) == true) then
+        return resource
+    elseif (type(resource) == "string") then
+        return self:GetResource(resource)
+    end
+
+    return nil
+end
+
+
+function ECSWorld:RegisterResource(resource, resourceName)    --register for prefabs resources
+    assert(self:IsResource(resource) == true)
+    
+    if (TableContains(self._RegisteredResources, resource) == true) then
+        return
+    end
+
+    resourceName = resourceName or resource.ResourceName
+
+    local otherResource = self:GetResource(resourceName)
+
+    if (otherResource ~= nil) then
+        error("Resource already registered with the name " .. resourceName)
+    end
+
+    self._RegisteredResources[resourceName] = resource
+end
+
+
+function ECSWorld:_CreateEntitiesFromInstanceList(instances, data, rootInstance)
+    local newEntities = {}
+    local rootEntity = nil
+
+    for _, entityInstance in pairs(instances) do
+        local entityInstanceName = entityInstance.Name
+
+        local componentData
+        local isRootInstance = entityInstance == rootInstance
+
+        if (isRootInstance == true and type(data.RootInstance) == "table") then
+            componentData = data.RootInstance
+        else
+            componentData = data[entityInstanceName] or {}
+        end
+        
+        local newEntity = self:_CreateAndAddEntityWithData(entityInstance, componentData)
+        table.insert(newEntities, newEntity)
+
+        if (isRootInstance == true) then
+            rootEntity = newEntity
+        end
+    end
+
+    if (rootInstance ~= nil and rootEntity ~= nil) then
+        rootInstance.ChildRemoved:Connect(function(child)   --remove automatically if it has no children
+            if (#rootInstance:GetChildren() == 0) then
+                rootInstance:Destroy()
+            end
+        end)
+    end
+
+    return newEntities, rootEntity
+end
+
+
+function ECSWorld:_CreateEntitiesFromInstance_Base(instance, data)
+    local entityInstances = GetEntityInstancesFromInstance(instance)
+
+    local newEntities, rootEntity = self:_CreateEntitiesFromInstanceList(entityInstances, data, instance)
+
+    return newEntities, rootEntity
+end
+
+
+function ECSWorld:_CreateEntitiesFromInstance(instance, data)
+    --
+end
+
+
+local function _CreateEntitiesFromInstance_Server(self, instance, data, isServerSide)
+    isServerSide = self:_CheckIsServerSideValue(isServerSide)
+    assert(isServerSide == true or IsInstanceVisibleByClient(instance) == true, "Instance cannot be seen by client!")
+
+    local newEntities, rootEntity = self:_CreateEntitiesFromInstance_Base(instance, data)
+
+    for _, entity in pairs(newEntities) do
+        entity.IsServerSide = isServerSide
+    end
+
+    self:_InitializeEntitiesFromList(newEntities)
+
+    if (isServerSide == false) then
+        self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_CREATE_FROM_INSTANCE, instance, data)
+    end
+
+    return newEntities, rootEntity
+end
+
+
+local function _CreateEntitiesFromInstance_Client(self, instance, data)
+    local newEntities, rootEntity = self:_CreateEntitiesFromInstance_Base(instance, data)
+
+    self:_InitializeEntitiesFromList(newEntities)
+
+    return newEntities, rootEntity
+end
+
+
+local function EntitiesCreatedFromInstanceFromServer_Client(self, instance, data)
+    self:_CreateEntitiesFromInstance(instance, data)
+end
+
+
+function ECSWorld:CreateEntitiesFromInstance(instance, data, isServerSide)
+    assert(typeof(instance) == "Instance")
+
+    data = data or {}
+    assert(type(data) == "table")
+
+    local newEntities, rootEntity = self:_CreateEntitiesFromInstance(instance, data, isServerSide)
+
+    return newEntities, rootEntity
+end
+
+
+function ECSWorld:_CreateEntitiesFromResource_Base(resourceObject, data, parent)
+    resource = self:GetResourceFromObject(resourceObject)
+
+    if (resource == nil) then
+        return nil, "Unable to load resource!"
+    end
+
+    local rootInstance, entityInstances = resource:Create()
+
+    local newEntities, rootEntity = self:_CreateEntitiesFromInstanceList(entityInstances, data, rootInstance)
+
+    rootInstance.Parent = parent
+
+    return rootInstance, newEntities, rootEntity
+end
+
+
+function ECSWorld:_CreateEntitiesFromResource()
+    --
+end
+
+
+local function _CreateEntitiesFromResource_Server(self, resource, data, parent, isServerSide)
+    isServerSide = self:_CheckIsServerSideValue(isServerSide)
+    assert(isServerSide == true or IsInstanceVisibleByClient(parent) == true)
+    
+    local rootInstance, newEntities, rootEntity = self:_CreateEntitiesFromResource_Base(resource, data, parent)
+
+    assert(rootInstance ~= nil, "Unable to load resource!" .. tostring(newEntities))
+
+    for _, entity in pairs(newEntities) do
+        entity.IsServerSide = isServerSide
+    end
+
+    self:_InitializeEntitiesFromList(newEntities)
+
+    if (isServerSide == false) then
+        self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_CREATE_FROM_INSTANCE, rootInstance, data)
+    end
+
+    return rootInstance, newEntities, rootEntity
+end
+
+
+local function _CreateEntitiesFromResource_Client(self, resource, data, parent)
+    local rootInstance, newEntities, rootEntity = self:_CreateEntitiesFromResource_Base(resource, data, parent)
+
+    assert(rootInstance ~= nil, "Unable to load resource!" .. tostring(newEntities))
+
+    self:_InitializeEntitiesFromList(newEntities)
+
+    return rootInstance, newEntities, rootEntity
+end
+
+
+function ECSWorld:CreateEntitiesFromResource(resource, data, parent, isServerSide)
+    data = data or {}
+    assert(type(data) == "table")
+
+    assert(parent == nil or typeof(parent) == "Instance")
+
+    local rootInstance, newEntities, rootEntity = self:_CreateEntitiesFromResource(resource, data, parent, isServerSide)
+
+    return rootInstance, newEntities, rootEntity
+end
+
+
+local function ResourceCreatedFromServer_Client()
+
 end
 
 
@@ -1058,8 +848,8 @@ local function PlayerLeft_Server(self, player)
 end
 
 
-function ECSWorld:Destroy()
-    --to do, add
+function ECSWorld:Destroy() --to do, add
+    setmetatable(self, nil)
 end
 
 
@@ -1097,13 +887,14 @@ function ECSWorld.new(name, isServer, remoteEvent)
     if (isServer == true) then
         self._IsServer = true
 
-        self.CreateEntity = CreateEntity_Server
+        self._CreateEntity = CreateEntity_Server
         self.RemoveEntity = RemoveEntity_Server
 
         self.AddComponentsToEntity = AddComponentsToEntity_Server
         self.RemoveComponentsFromEntity = RemoveComponentsFromEntity_Server
 
-        self.CreateEntityFromResource = CreateEntityFromResource_Server
+        self._CreateEntitiesFromInstance = _CreateEntitiesFromInstance_Server
+        self._CreateEntitiesFromResource = _CreateEntitiesFromResource_Server
 
         self._PlayersReady = {}
         self.IsPlayerReady = IsPlayerReady_Server
@@ -1126,13 +917,14 @@ function ECSWorld.new(name, isServer, remoteEvent)
     else
         self._IsServer = false
 
-        self.CreateEntity = CreateEntity_Client
+        self._CreateEntity = CreateEntity_Client
         self.RemoveEntity = RemoveEntity_Client
 
         self.AddComponentsToEntity = AddComponentsToEntity_Client
         self.RemoveComponentsFromEntity = RemoveComponentsFromEntity_Client
 
-        self.CreateEntityFromResource = CreateEntityFromResource_Client
+        self._CreateEntitiesFromInstance = _CreateEntitiesFromInstance_Client
+        self._CreateEntitiesFromResource = _CreateEntitiesFromResource_Client
 
         if (remoteEvent ~= nil) then
             self._RemoteEvent = remoteEvent
@@ -1141,17 +933,21 @@ function ECSWorld.new(name, isServer, remoteEvent)
                 remoteEvent:FireServer(REMOTE_EVENT_PLAYER_READY)
             end
 
-            self._RemoteEventConnection = remoteEvent.OnClientEvent:Connect(function(eventType, instance, componentList, tags)
+            self._RemoteEventConnection = remoteEvent.OnClientEvent:Connect(function(eventType, instance, componentList)
                 if (eventType == REMOTE_EVENT_ENTITY_CREATE) then
-                    EntityCreatedFromServer(self, instance, componentList, tags)
+                    EntityCreatedFromServer_Client(self, instance, componentList)
                 elseif (eventType == REMOTE_EVENT_ENTITY_REMOVE) then
-                    EntityRemovedFromServer(self, instance)
+                    EntityRemovedFromServer_Client(self, instance)
                 elseif (eventType == REMOTE_EVENT_ENTITY_ADD_COMPONENTS) then
-                    EntityAddedComponentsFromServer(self, instance, componentList)
+                    EntityAddedComponentsFromServer_Client(self, instance, componentList)
                 elseif (eventType == REMOTE_EVENT_ENTITY_REMOVE_COMPONENTS) then
-                    EntityRemovedComponentsFromServer(self, instance, componentList)
+                    EntityRemovedComponentsFromServer_Client(self, instance, componentList)
+                elseif (eventType == REMOTE_EVENT_ENTITY_CREATE_FROM_INSTANCE) then
+                    EntitiesCreatedFromInstanceFromServer_Client(self, instance, componentList)
                 elseif (eventType == REMOTE_EVENT_RESOURCE_CREATE) then
-                    ResourceCreatedFromServer(self, instance, componentList)
+                    --ResourceCreatedFromServer_Client(self, instance, componentList)
+                else
+                    warn("Unknown Argument [1] passed! Arg [1] = ".. tostring(eventType))
                 end
             end)
         end
