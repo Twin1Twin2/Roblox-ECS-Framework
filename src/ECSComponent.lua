@@ -31,6 +31,20 @@ local ECSComponent = {
 ECSComponent.__index = ECSComponent
 
 
+function ECSComponent:CopyData()
+    local componentDesc = self._ComponentDescription
+    assert(componentDesc ~= nil)
+
+    local data = {}
+
+    for i, _ in pairs(componentDesc.Data) do
+        data[i] = AltDeepCopy(self[i])
+    end
+
+    return data
+end
+
+
 function ECSComponent:Initialize(entity)
     if (self._IsInitialized == false) then
         self._IsInitialized = true
@@ -40,7 +54,7 @@ end
 
 
 function ECSComponent:Destroy()
-    self._ComponentDescription:Destroy(self)
+    self._ComponentDescription:DestroyComponent(self)
 
     setmetatable(self, nil)
 end

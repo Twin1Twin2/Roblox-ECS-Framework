@@ -1,9 +1,5 @@
-
-local Table = require(script.Parent.Table)
-
-local TableContains = Table.Contains
-local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
-
+--- Entity
+--
 
 local ECSEntity = {
     ClassName = "ECSEntity";
@@ -11,6 +7,28 @@ local ECSEntity = {
 
 ECSEntity.__index = ECSEntity
 
+
+function ECSEntity:ContainsInstance(instance)
+    local selfInstance = self.Instance
+    return selfInstance ~= nil and (selfInstance == instance or selfInstance:IsAncestorOf(instance))
+end
+
+
+function ECSEntity:CopyData()
+    local data = {}
+
+    for componentName, component in pairs(self._Components) do
+        if (component ~= nil) then
+            local componentData = component:CopyData()
+            data[componentName] = componentData
+        end
+    end
+
+    return data
+end
+
+
+-- Component
 
 function ECSEntity:HasComponent(componentName)
     return (self._Components[componentName] ~= nil)
@@ -39,20 +57,6 @@ function ECSEntity:HasComponents(...)
 end
 
 
-function ECSEntity:ContainsInstance(instance)
-    if (self.Instance ~= nil) then
-        return self.Instance == instance or self.Instance:IsAncestorOf(instance)
-    end
-
-    return false
-end
-
-
-function ECSEntity:GetRegisteredSystems()
-    return self._RegisteredSystems
-end
-
-
 function ECSEntity:GetComponent(componentName)
     return self._Components[componentName] or self._RemovedComponents[componentName]
 end
@@ -63,42 +67,27 @@ function ECSEntity:_InitializeComponent(component)
 end
 
 
-function ECSEntity:InitializeComponents()
-    for _, component in pairs(self._Components) do
-        if (component._IsInitialized == false) then
-            self:_InitializeComponent(component)
-        end
-    end
-end
-
-
 function ECSEntity:_AddComponent(componentName, component)
     self._Components[componentName] = component
-end
-
-
-function ECSEntity:AddComponent(componentName, component, initializeComponent)
-    assert(type(componentName) == "string")
-    assert(type(component) == "table" and component._IsComponent == true)
-
-    local comp = self:GetComponent(componentName)
-
-    if (comp ~= nil) then
-        self:_RemoveComponent(componentName, comp)
-        comp = nil
-    end
-
-    self:_AddComponent(componentName, component)
-
-    if (initializeComponent ~= false) then
-        self:_InitializeComponent(component)
-    end
+    self._AddedComponents[componentName] = component
 end
 
 
 function ECSEntity:_RemoveComponent(componentName, component)
     self._Components[componentName] = nil
     self._RemovedComponents[componentName] = component
+end
+
+
+function ECSEntity:AddComponent(componentName, component)
+    local otherComponent = self:GetComponent(componentName)
+
+    if (otherComponent ~= nil) then
+        self:_RemoveComponent(componentName, comp)
+        otherComponent = nil
+    end
+
+    self:_AddComponent(componentName, component)
 end
 
 
@@ -110,6 +99,8 @@ function ECSEntity:RemoveComponent(componentName)
     end
 end
 
+
+--System
 
 function ECSEntity:RegisterSystem(systemName)
     if (TableContains(self._RegisteredSystems, systemName) == false) then
@@ -133,14 +124,23 @@ function ECSEntity:UnregisterSystem(systemName)
 end
 
 
+-- Update
+
 function ECSEntity:Update()
+    for componentName, component in pairs(self._AddedComponents) do
+        self:_InitializeComponent(component)
+    end
+
     for componentName, component in pairs(self._RemovedComponents) do
         component:Destroy()
     end
 
+    self._AddedComponents = {}
     self._RemovedComponents = {}
 end
 
+
+-- Constructor/Destructor
 
 function ECSEntity:RemoveSelf()
     if (self.World ~= nil) then
@@ -156,12 +156,15 @@ function ECSEntity:Destroy()
 
     self._IsBeingDestroyed = true
 
-    for componentName, component in pairs(self._Components) do
-        self:RemoveComponent(componentName, component)
+    for componentName, _ in pairs(self._Components) do
+        self:RemoveComponent(componentName)
     end
+
+    self:Update()
 
     if (self.Instance ~= nil) then
         self.Instance:Destroy()
+        self.Instance = nil
     end
 
     self.World = nil
@@ -173,28 +176,28 @@ function ECSEntity:Destroy()
 end
 
 
-function ECSEntity.new(world, instance)
+function ECSEntity.new(instance)
     if (instance == nil) then
         instance = Instance.new("Model")
     end
 
     assert(typeof(instance) == "Instance")
 
+
     local self = setmetatable({}, ECSEntity)
 
     self.Instance = instance
 
-    self.World = world
-    --self.ParentEntity = nil
-    --self.ChildrenEntities = {}
+    self.World = nil
 
     self._Components = {}
+    self._AddedComponents = {}
     self._RemovedComponents = {}
     self._RegisteredSystems = {}
 
-    self._IsServerSide = false
+    self._IsServerSide = nil
     
-    self._IsBeingRemoved = false    --flag
+    self._IsBeingRemoved = false
     self._IsBeingDestroyed = false
 
 

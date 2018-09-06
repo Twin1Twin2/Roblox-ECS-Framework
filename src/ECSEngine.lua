@@ -2,8 +2,17 @@
 local RunService = game:GetService("RunService")
 
 local ECSWorld = require(script.Parent.ECSWorld)
+local ECSWorld_Server = require(script.Parent.ECSWorld_Server)
+local ECSWorld_Client = require(script.Parent.ECSWorld_Client)
 local ECSSystem = require(script.Parent.ECSSystem)
 local ECSEngineConfiguration = require(script.Parent.ECSEngineConfiguration)
+
+local Utilities = require(script.Parent.Utilities)
+
+local IsEngineConfiguration = Utilities.IsEngineConfiguration
+
+
+local USER_INTERFACE_UPDATE_RENDER_PRIORITY = Enum.RenderPriority.First.Value
 
 
 local ECSEngine = {
@@ -46,6 +55,15 @@ function ECSEngine:HeartbeatUpdate(stepped)
 end
 
 
+function ECSEngine:UserInterfaceUpdate(stepped) --keep the ui thread separate i guess
+    for _, system in pairs(self._UserInterfaceUpdateSystems) do 
+        system:SetLockMode(LOCKMODE_LOCKED)
+        system:Update(stepped)
+        system:SetLockMode(LOCKMODE_OPEN)
+    end
+end
+
+
 function ECSEngine:Destroy()
     if (self.World ~= nil) then
         self.World:Destroy()
@@ -63,6 +81,8 @@ function ECSEngine:Destroy()
         self._HeartbeatUpdateConnection:Disconnect()
     end
 
+    RunService:UnbindFromRenderStep(self._UserInterfaceUpdateName)
+
     self.World = nil
 
     setmetatable(self, nil)
@@ -70,36 +90,67 @@ end
 
 
 function ECSEngine.new(engineConfiguration)
-    assert(type(engineConfiguration) == "table" and engineConfiguration.ClassName == "ECSEngineConfiguration")
+    assert(IsEngineConfiguration(engineConfiguration))
 
     local self = setmetatable({}, ECSEngine)
 
     local isServer = engineConfiguration.IsServer
     local remoteEvent = engineConfiguration.RemoteEvent
+    local worldName = engineConfiguration.WorldName
 
-    self.World = ECSWorld.new(engineConfiguration.WorldName, isServer, remoteEvent)
+    self.World = nil
+
+    if (type(isServer) == "boolean") then
+        assert(typeof(remoteEvent) == "Instance" and remoteEvent:IsA("RemoteEvent"))
+        if (isServer == true) then
+            self.World = ECSWorld_Server.new(remoteEvent, worldName)
+        else
+            self.World = ECSWorld_Client.new(remoteEvent, worldName)
+        end
+    else
+        self.World = ECSWorld.new(worldName)
+    end
     
     self._RenderSteppedUpdateSystems = {}
     self._SteppedUpdateSystems = {}
     self._HeartbeatUpdateSystems = {}
+    self._UserInterfaceUpdateSystems = {}
 
     self._RenderSteppedUpdateConnection = nil
     self._SteppedUpdateConnection = nil
     self._HeartbeatUpdateConnection = nil
+    self._UserInterfaceUpdateName = nil
 
-    self.World:RegisterComponentsFromList(engineConfiguration.Components)
-    self.World:RegisterSystemsFromList(engineConfiguration.Systems, false)
+    for _, component in pairs(engineConfiguration.Components) do
+        self.World:RegisterComponent(component)
+    end
 
-    self.World:InitializeSystems()
+    for _, system in pairs(engineConfiguration.Systems) do
+        self.World:RegisterSystem(system, false)
+    end
+
+    for _, system in pairs(engineConfiguration.Systems) do
+        self.World:_InitializeSystem(system)
+    end
 
     self._RenderSteppedUpdateSystems = engineConfiguration.RenderSteppedSystems
     self._SteppedUpdateSystems = engineConfiguration.SteppedSystems
     self._HeartbeatUpdateSystems = engineConfiguration.HeartbeatSystems
+    self._UserInterfaceUpdateSystems = engineConfiguration.UserInterfaceSystems
 
-    if (isServer == false or isServer == nil) then  --assume client
+    if (isServer == false or isServer == nil) then  --assume client/normal
         self._RenderSteppedUpdateConnection = RunService.RenderStepped:Connect(function(stepped)
             self:RenderSteppedUpdate(stepped)
         end)
+
+        local userInterfaceUpdateName = worldName .. "_USER_INTERFACE_UPDATE"
+
+        local function UserInterfaceUpdateFunction(stepped)
+            self:UserInterfaceUpdate(stepped)
+        end
+
+        self._UserInterfaceUpdateName = userInterfaceUpdateName
+        RunService:BindToRenderStep(userInterfaceUpdateName, USER_INTERFACE_UPDATE_RENDER_PRIORITY, UserInterfaceUpdateFunction)
     end
 
     self._SteppedUpdateConnection = RunService.Stepped:Connect(function(t, stepped)

@@ -5,23 +5,7 @@ local TableContains = Table.Contains
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
 local Merge = Table.Merge
 local DeepCopy = Table.DeepCopy
-
-local function AltDeepCopy(source)   --copied from RobloxComponentSystem by tiffany352
-	if typeof(source) == 'table' then
-		local new = {}
-		for key, value in pairs(source) do
-			new[AltDeepCopy(key)] = AltDeepCopy(value)
-		end
-		return new
-	end
-	return source
-end
-
-local function AltMerge(to, from)   --copied from RobloxComponentSystem by tiffany352
-	for key, value in pairs(from or {}) do
-		to[DeepCopy(key)] = DeepCopy(value)
-	end
-end
+local AltMerge = Table.AltMerge
 
 
 local ECSComponentDescription = {
@@ -38,10 +22,23 @@ local INDEX_BLACKLIST = {
 }
 
 
-function ECSComponentDescription:Create(component, data)
+local function MergeComponentWithData(component, data)
     AltMerge(component, data)
 
     return component
+end
+
+
+function ECSComponentDescription.MergeComponentWithData(component, data)
+    assert(IsComponent(component))
+    assert(type(data) == "table")
+
+    return MergeComponentWithData(component, data)
+end
+
+
+function ECSComponentDescription:Create(component, data)
+    return MergeComponentWithData(component, data)
 end
 
 
@@ -50,8 +47,13 @@ function ECSComponentDescription:Initialize(component, entity)
 end
 
 
-function ECSComponentDescription:Destroy(component)
+function ECSComponentDescription:DestroyComponent(component)
 
+end
+
+
+function ECSComponentDescription:Destroy()
+    setmetatable(self, nil)
 end
 
 

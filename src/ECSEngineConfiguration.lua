@@ -1,7 +1,19 @@
 
+local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
 
+local IsComponentDescription = Utilities.IsComponentDescription
+local IsSystem = Utilities.IsSystem
+
 local TableContains = Table.Contains
+
+local SYSTEM_UPDATE_TYPE = Utilities.SYSTEM_UPDATE_TYPE
+
+local SYSTEM_UPDATE_TYPE_NO_UPDATE = SYSTEM_UPDATE_TYPE.NO_UPDATE
+local SYSTEM_UPDATE_TYPE_RENDER_STEPPED = SYSTEM_UPDATE_TYPE.RENDER_STEPPED
+local SYSTEM_UPDATE_TYPE_STEPPED = SYSTEM_UPDATE_TYPE.STEPPED
+local SYSTEM_UPDATE_TYPE_HEARTBEAT = SYSTEM_UPDATE_TYPE.HEARTBEAT
+local SYSTEM_UPDATE_TYPE_UI = SYSTEM_UPDATE_TYPE.UI
 
 
 local ECSEngineConfiguration = {
@@ -12,188 +24,98 @@ ECSEngineConfiguration.__index = ECSEngineConfiguration
 
 
 function ECSEngineConfiguration:AddComponent(component)
-    assert(type(component) == "table" and component._IsComponentDescription == true)
+    assert(IsComponentDescription(component))
 
-    if (TableContains(self.Components, component) == true) then
-        return
-    end
-
-    table.insert(self.Components, component)
+    if (TableContains(self.Components, component) == false) then
+        table.insert(self.Components, component)
+    end 
 end
 
 
-function ECSEngineConfiguration:AddComponents(...)
-    local componentList = {...}
-
-    if (#componentList == 1 and type(componentList[1]) == "table" and componentList[1]._IsComponentDescription == nil) then
-        componentList = componentList[1]
-    end
-
-    self:AddComponentsFromList(componentList)
-end
-
-
-function ECSEngineConfiguration:AddComponentsFromList(componentList)
-    for _, component in pairs(componentList) do
-        self:AddComponent(component)
+function ECSEngineConfiguration:_AddSystem(system)
+    if (TableContains(self.Systems, system) == false) then
+        table.insert(self.Systems, system)
     end
 end
 
 
-function ECSEngineConfiguration:AddSystem(system)
-    assert(type(system) == "table" and system._IsSystem == true, "Object is not a system!")
+function ECSEngineConfiguration:AddSystem(system, type)
+    assert(IsSystem(system))
 
-    if (TableContains(self.Systems, system) == true) then
-        return
-    end
-
-    table.insert(self.Systems, system)
-end
-
-
-function ECSEngineConfiguration:AddSystems(...)
-    local systemList = {...}
-
-    if (#systemList == 1 and type(systemList[1]) == "table" and systemList[1]._IsSystem == nil) then
-        systemList = systemList[1]
-    end
-
-    self:AddSystemsFromList(systemList)
-end
-
-
-function ECSEngineConfiguration:AddSystemsFromList(systemList)
-    for index, system in pairs(systemList) do
-        local updateType = 0
-
-        if (type(system) == "number" and type(index) == "table") then
-            updateType = system
-            system = index
-        elseif (type(system) == "table" and type(system.SystemUpdateType) == "number") then
-            updateType = system.SystemUpdateType
-        end
-
-        if (updateType == 0) then
-            self:AddSystem(system)
-        elseif (updateType == 1) then
-            self:AddRenderSteppedSystem(system)
-        elseif (updateType == 2) then
-            self:AddSteppedSystem(system)
-        elseif (updateType == 3) then
-            self:AddHeartbeatSystem(system)
-        end
+    if (type == SYSTEM_UPDATE_TYPE_RENDER_STEPPED) then
+        self:AddRenderSteppedSystem(system)
+    elseif (type == SYSTEM_UPDATE_TYPE_STEPPED) then
+        self:AddSteppedSystem(system)
+    elseif (type == SYSTEM_UPDATE_TYPE_HEARTBEAT) then
+        self:AddHeartbeatSystem(system)
+    elseif (type == SYSTEM_UPDATE_TYPE_UI) then
+        self:AddUserInterfaceSystem(system)
+    else
+        self:_AddSystem(system)
     end
 end
 
 
 function ECSEngineConfiguration:AddRenderSteppedSystem(system)
-    assert(type(system) == "table" and system._IsSystem == true)
+    assert(IsSystem(system))
 
-    if (TableContains(self.RenderSteppedSystems, system) == true) then
-        return
+    if (TableContains(self.RenderSteppedSystems, system) == false) then
+        table.insert(self.RenderSteppedSystems, system)
     end
 
-    table.insert(self.RenderSteppedSystems, system)
-
-    self:AddSystem(system)
-end
-
-
-function ECSEngineConfiguration:AddRenderSteppedSystems(...)
-    local systemList = {...}
-
-    if (#systemList == 1 and type(systemList[1]) == "table" and systemList[1]._IsSystem == nil) then
-        systemList = systemList[1]
-    end
-
-    self:AddRenderSteppedSystemsFromList(systemList)
-end
-
-
-function ECSEngineConfiguration:AddRenderSteppedSystemsFromList(systemsList)
-    for _, system in pairs(systemsList) do
-        self:AddRenderSteppedSystem(system)
-    end
+    self:_AddSystem(system)
 end
 
 
 function ECSEngineConfiguration:AddSteppedSystem(system)
-    assert(type(system) == "table" and system._IsSystem == true)
+    assert(IsSystem(system))
 
-    if (TableContains(self.SteppedSystems, system) == true) then
-        return
-    end
+    if (TableContains(self.SteppedSystems, system) == false) then
+        table.insert(self.SteppedSystems, system)
+    end    
 
-    table.insert(self.SteppedSystems, system)
-
-    self:AddSystem(system)
-end
-
-
-function ECSEngineConfiguration:AddSteppedSystems(...)
-    local systemList = {...}
-
-    if (#systemList == 1 and type(systemList[1]) == "table" and systemList[1]._IsSystem == nil) then
-        systemList = systemList[1]
-    end
-
-    self:AddSteppedSystemsFromList(systemList)
-end
-
-
-function ECSEngineConfiguration:AddSteppedSystemsFromList(systemsList)
-    for _, system in pairs(systemsList) do
-        self:AddSteppedSystem(system)
-    end
+    self:_AddSystem(system)
 end
 
 
 function ECSEngineConfiguration:AddHeartbeatSystem(system)
-    assert(type(system) == "table" and system._IsSystem == true)
+    assert(IsSystem(system))
 
-    if (TableContains(self.HeartbeatSystems, system) == true) then
-        return
+    if (TableContains(self.HeartbeatSystems, system) == false) then
+        table.insert(self.HeartbeatSystems, system)
     end
 
-    table.insert(self.HeartbeatSystems, system)
-
-    self:AddSystem(system)
+    self:_AddSystem(system)
 end
 
 
-function ECSEngineConfiguration:AddHeartbeatSystems(...)
-    local systemList = {...}
+function ECSEngineConfiguration:AddUserInterfaceSystem(system)
+    assert(IsSystem(system))
 
-    if (#systemList == 1 and type(systemList[1]) == "table" and systemList[1]._IsSystem == nil) then
-        systemList = systemList[1]
+    if (TableContains(self.UserInterfaceSystems, system) == false) then
+        table.insert(self.UserInterfaceSystems, system)
     end
 
-    self:AddHeartbeatSystemsFromList(systemList)
+    self:_AddSystem(system)
 end
 
 
-function ECSEngineConfiguration:AddHeartbeatSystemsFromList(systemsList)
-    for _, system in pairs(systemsList) do
-        self:AddHeartbeatSystem(system)
-    end
-end
-
-
-function ECSEngineConfiguration.new(name, isServer)
+function ECSEngineConfiguration.new(name, isServer, remoteEvent)
     local self = setmetatable({}, ECSEngineConfiguration)
 
     self.WorldName = name or "WORLD"
 
     self.Components = {}
-
     self.Systems = {}
 
     self.RenderSteppedSystems = {}
     self.SteppedSystems = {}
     self.HeartbeatSystems = {}
+    self.UserInterfaceSystems = {}
 
-    self.IsServer = false
-
+    self.IsServer = nil
+    self.RemoteEvent = remoteEvent or nil
+    
     if (type(isServer) == "boolean") then
         self.IsServer = isServer
     end
