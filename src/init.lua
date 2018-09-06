@@ -27,7 +27,15 @@ ECSFramework.SYSTEM_UPDATE_TYPE = Utilities.SYSTEM_UPDATE_TYPE
 
 -- Utility Functions 
 
+ECSFramework.IsEntity = Utilities.IsEntity
+ECSFramework.IsComponent = Utilities.IsComponent
+ECSFramework.IsComponentDescription = Utilities.IsComponentDescription
+ECSFramework.IsComponentGroup = Utilities.IsComponentGroup
+ECSFramework.IsSystem = Utilities.IsSystem
+ECSFramework.IsEngineConfiguration = Utilities.IsEngineConfiguration
+ECSFramework.IsResource = Utilities.IsResource
 
+ECSFramework.PrintComponentList = Utilities.PrintComponentList
 
 
 -- Classes

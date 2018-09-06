@@ -80,6 +80,11 @@ function Utilities.IsSystem(object)
 end
 
 
+function Utilities.IsEngineConfiguration(object)
+    return type(object) == "table" and object._IsEngineConfiguration == true
+end
+
+
 function Utilities.IsResource(object)
     return type(object) == "table" and object._IsResource == true
 end
@@ -156,22 +161,7 @@ function Utilities.MergeComponentData(mainComponentData, otherComponentData)
 end
 
 
-function Utilities.CanInstanceBeAPrefab(instance)    --for prefabs
-    local isResource = false
-
-    local flag = instance:FindFirstChild(ENTITY_INSTANCE_PREFAB_DATA_NAME)
-    local resourceName = nil
-
-    if (flag ~= nil and flag:IsA("StringValue") == true) then
-        isResource = true
-        resourceName = flag.Value
-    end
-
-    return isResource, resourceName
-end
-
-
-function Utilities.GetEntityInstancesFromInstance(instance, entityInstances)
+local function GetEntityInstancesFromInstance(instance, entityInstances)
     entityInstances = entityInstances or {}
 
     if (INVALID_ENTITY_INSTANCE_NAMES[instance.Name] ~= true and CanInstanceBeAnEntity(instance) == true) then
@@ -185,6 +175,24 @@ function Utilities.GetEntityInstancesFromInstance(instance, entityInstances)
     return entityInstances
 end
 
+Utilities.GetEntityInstancesFromInstance = GetEntityInstancesFromInstance
+
+
+local function PrintComponentList(componentList)
+    assert(type(componentList) == "table")
+
+    for componentName, componentData in pairs(componentList) do
+        if (type(componentData) == "table") then
+            print("[\"" ..componentName .. "\"]")
+            for index, value in pairs(componentData) do
+                print("    -", index, "=", value)
+            end
+            print()
+        end
+    end
+end
+
+Utilities.PrintComponentList = PrintComponentList
 
 
 return Utilities

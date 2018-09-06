@@ -32,6 +32,22 @@ function ECSEngineConfiguration:AddComponent(component)
 end
 
 
+function ECSEngineConfiguration:AddComponents(...)
+    local componentList = {...}
+
+    self:AddComponentsFromList(componentList)
+end
+
+
+function ECSEngineConfiguration:AddComponentsFromList(componentList)
+    assert(type(componentList) == "table")
+
+    for _, component in pairs(componentList) do
+        self:AddComponent(component)
+    end
+end
+
+
 function ECSEngineConfiguration:_AddSystem(system)
     if (TableContains(self.Systems, system) == false) then
         table.insert(self.Systems, system)
@@ -56,6 +72,22 @@ function ECSEngineConfiguration:AddSystem(system, type)
 end
 
 
+function ECSEngineConfiguration:AddSystems(...)
+    local systemList = {...}
+
+    self:AddSystemsFromList(systemList)
+end
+
+
+function ECSEngineConfiguration:AddSystemsFromList(systemList)
+    assert(type(systemList) == "table")
+
+    for _, system in pairs(systemList) do
+        self:AddSystem(system)
+    end
+end
+
+
 function ECSEngineConfiguration:AddRenderSteppedSystem(system)
     assert(IsSystem(system))
 
@@ -64,6 +96,22 @@ function ECSEngineConfiguration:AddRenderSteppedSystem(system)
     end
 
     self:_AddSystem(system)
+end
+
+
+function ECSEngineConfiguration:AddRenderSteppedSystems(...)
+    local systemList = {...}
+
+    self:AddRenderSteppedSystemsFromList(systemList)
+end
+
+
+function ECSEngineConfiguration:AddRenderSteppedSystemsFromList(systemList)
+    assert(type(systemList) == "table")
+
+    for _, system in pairs(systemList) do
+        self:AddRenderSteppedSystem(system)
+    end
 end
 
 
@@ -78,6 +126,22 @@ function ECSEngineConfiguration:AddSteppedSystem(system)
 end
 
 
+function ECSEngineConfiguration:AddSteppedSystems(...)
+    local systemList = {...}
+
+    self:AddSteppedSystemsFromList(systemList)
+end
+
+
+function ECSEngineConfiguration:AddSteppedSystemsFromList(systemList)
+    assert(type(systemList) == "table")
+
+    for _, system in pairs(systemList) do
+        self:AddSteppedSystem(system)
+    end
+end
+
+
 function ECSEngineConfiguration:AddHeartbeatSystem(system)
     assert(IsSystem(system))
 
@@ -89,6 +153,22 @@ function ECSEngineConfiguration:AddHeartbeatSystem(system)
 end
 
 
+function ECSEngineConfiguration:AddHeartbeatSystems(...)
+    local systemList = {...}
+
+    self:AddHeartbeatSystemsFromList(systemList)
+end
+
+
+function ECSEngineConfiguration:AddHeartbeatSystemsFromList(systemList)
+    assert(type(systemList) == "table")
+
+    for _, system in pairs(systemList) do
+        self:AddHeartbeatSystem(system)
+    end
+end
+
+
 function ECSEngineConfiguration:AddUserInterfaceSystem(system)
     assert(IsSystem(system))
 
@@ -97,6 +177,22 @@ function ECSEngineConfiguration:AddUserInterfaceSystem(system)
     end
 
     self:_AddSystem(system)
+end
+
+
+function ECSEngineConfiguration:AddUserInterfaceSystems(...)
+    local systemList = {...}
+
+    self:AddUserInterfaceSystemsFromList(systemList)
+end
+
+
+function ECSEngineConfiguration:AddUserInterfaceSystemsFromList(systemList)
+    assert(type(systemList) == "table")
+
+    for _, system in pairs(systemList) do
+        self:AddUserInterfaceSystem(system)
+    end
 end
 
 
@@ -115,6 +211,8 @@ function ECSEngineConfiguration.new(name, isServer, remoteEvent)
 
     self.IsServer = nil
     self.RemoteEvent = remoteEvent or nil
+
+    self._IsEngineConfiguration = true
     
     if (type(isServer) == "boolean") then
         self.IsServer = isServer

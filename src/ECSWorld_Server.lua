@@ -11,6 +11,18 @@ local ECSWorld = require(script.Parent.ECSWorld)
 
 local Signal = require(script.Parent.Signal)
 local Utilities = require(script.Parent.Utilities)
+local Table = require(script.Parent.Table)
+
+local IsEntity = Utilities.IsEntity
+local IsComponentDescription = Utilities.IsComponentDescription
+local IsSystem = Utilities.IsSystem
+
+local PrintComponentList = Utilities.PrintComponentList
+
+local TableContains = Table.Contains
+
+local COMPONENT_DESC_CLASSNAME = Utilities.COMPONENT_DESC_CLASSNAME
+local SYSTEM_CLASSNAME = Utilities.SYSTEM_CLASSNAME
 
 local REMOTE_EVENT_ENUM = Utilities.REMOTE_EVENT_ENUM
 
@@ -29,9 +41,7 @@ end
 
 
 local function IsInstanceVisibleByClient(instance)
-    local instanceParent = instance.Parent
-
-    return instanceParent ~= nil and IsValidParentForServerClientEntity(instanceParent)
+    return ServerStorage:IsAncestorOf(instance) or ServerScriptService:IsAncestorOf(instance)
 end
 
 
@@ -79,13 +89,24 @@ function ECSWorld_Server:_PlayerLeft(player)
 end
 
 
+function ECSWorld_Server:_FireRemoteEvent(eventType, playerList, ...)
+    if (type(playerList) == "table") then
+        for _, player in pairs(playerList) do
+            self._RemoteEvent:FireClient(player, eventType, ...)
+        end
+    else
+        self._RemoteEvent:FireAllClients(eventType, ...)
+    end
+end
+
+
 --Entities
 
 function ECSWorld_Server:_FireAllClientsEntityCreated(entity)
     local entityComponentList = entity:CopyData()
     self:FilterServerComponents(entityComponentList)
 
-    self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_CREATE, entity.Instance, entityComponentList)
+    self:_FireRemoteEvent(REMOTE_EVENT_ENTITY_CREATE, nil, entity.Instance, entityComponentList)
 end
 
 
@@ -93,8 +114,8 @@ function ECSWorld_Server:CreateEntity(instance, componentList, isServerSide)
     isServerSide = isServerSide or false
     assert(type(isServerSide) == "boolean")
 
-    if (typeof(instance) == "Instance" and isServerSide == false) then
-        assert(IsInstanceVisibleByClient(instance))
+    if (isServerSide == false) then
+        assert(instance == nil or (typeof(instance) == "Instance" and IsInstanceVisibleByClient(instance)))
     end
     
     local entity = self:_CreateEntity(instance, componentList)
@@ -137,8 +158,9 @@ function ECSWorld_Server:CreateEntitiesFromInstance(instance, data, isServerSide
 end
 
 
-function ECSWorld_Server:AddComponentsToEntity(entity, componentList)
+function ECSWorld_Server:AddComponentsToEntity(entity, componentList, playerList)
     assert(self:HasEntity(entity) == true)
+    assert(playerList == nil or type(playerList) == "table")
 
     self:_AddComponentsToEntity(entity, componentList)
 
@@ -148,14 +170,15 @@ function ECSWorld_Server:AddComponentsToEntity(entity, componentList)
         local _, componentCount = self:FilterServerComponents(componentList)
 
         if (componentCount > 0) then
-            self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_ADD_COMPONENTS, entity.Instance, componentList)
+            self:_FireRemoteEvent(REMOTE_EVENT_ENTITY_ADD_COMPONENTS, playerList, entity.Instance, componentList)
         end
     end
 end
 
 
-function ECSWorld_Server:RemoveComponentsFromEntity(entity, componentList)
+function ECSWorld_Server:RemoveComponentsFromEntity(entity, componentList, playerList)
     assert(self:HasEntity(entity) == true)
+    assert(playerList == nil or type(playerList) == "table")
 
     self:_RemoveComponentsFromEntity(entity, componentList)
 
@@ -165,14 +188,15 @@ function ECSWorld_Server:RemoveComponentsFromEntity(entity, componentList)
         local _, componentCount = self:FilterServerComponents(componentList)
 
         if (componentCount > 0) then
-            self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_REMOVE_COMPONENTS, entity.Instance, componentList)
+            self:_FireRemoteEvent(REMOTE_EVENT_ENTITY_REMOVE_COMPONENTS, playerList, entity.Instance, componentList)
         end
     end
 end
 
 
-function ECSWorld_Server:AddAndRemoveComponentsFromEntity(entity, componentsToAdd, componentsToRemove)
+function ECSWorld_Server:AddAndRemoveComponentsFromEntity(entity, componentsToAdd, componentsToRemove, playerList)
     assert(self:HasEntity(entity) == true)
+    assert(playerList == nil or type(playerList) == "table")
 
     self:_AddComponentsToEntity(entity, componentsToAdd)
     self:_RemoveComponentsFromEntity(entity, componentsToRemove)
@@ -184,7 +208,7 @@ function ECSWorld_Server:AddAndRemoveComponentsFromEntity(entity, componentsToAd
         local _, toRemoveCount = self:FilterServerComponents(componentsToRemove)
 
         if (toAddCount > 0 or toRemoveCount > 0) then
-            self._RemoteEvent:FireAllClients(REMOTE_EVENT_ENTITY_ADD_REMOVE_COMPONENTS, entity.Instance, componentsToAdd, componentsToRemove)
+            self:_FireRemoteEvent(REMOTE_EVENT_ENTITY_ADD_REMOVE_COMPONENTS, playerList, entity.Instance, componentsToAdd, componentsToRemove)
         end
     end
 end
@@ -266,6 +290,7 @@ function ECSWorld_Server:CreateEntitiesFromResource(resource, parent, data, isSe
     assert(type(isServerSide) == "boolean")
     
     parent = parent or self.DefaultGlobalEntityInstanceParent
+    assert(isServerSide == true or (typeof(parent) == "Instance" and IsValidParentForServerClientEntity(parent)))
     
     local rootInstance, newEntities, rootEntity = self:_CreateEntitiesFromResource(resource, parent, data)
 
@@ -273,7 +298,7 @@ function ECSWorld_Server:CreateEntitiesFromResource(resource, parent, data, isSe
 
     for _, entity in pairs(newEntities) do
         entity._IsServerSide = isServerSide
-        self:_UpdateEntity(entity)
+        self:_AddEntity(entity)
     end
 
     if (isServerSide == false) then
@@ -314,6 +339,8 @@ function ECSWorld_Server.new(remoteEvent, name)
     self.DefaultGlobalEntityInstanceParent = ReplicatedStorage
 
     self._ServerComponents = {}
+
+    self._PlayersReady = {}
 
     self.OnPlayerReady = Signal.new()
     self.OnPlayerLeft = Signal.new()

@@ -4,6 +4,7 @@
 local Utilities = require(script.Parent.Utilities)
 
 local CanInstanceBeAnEntity = Utilities.CanInstanceBeAnEntity
+local GetEntityInstancesFromInstance = Utilities.GetEntityInstancesFromInstance
 
 
 local PATH_SEPARATOR = "/"

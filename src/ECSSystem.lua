@@ -222,7 +222,7 @@ function ECSSystem.new(name)
     self._IsSystem = true
     self._IsInitialized = false
 
-    self.SystemName = name
+    self.Name = name
 
     self.LockMode = LOCKMODE_OPEN
 

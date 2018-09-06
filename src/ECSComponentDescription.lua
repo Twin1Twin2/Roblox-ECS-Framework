@@ -1,5 +1,8 @@
 
+local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
+
+local IsComponent = Utilities.IsComponent
 
 local TableContains = Table.Contains
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable

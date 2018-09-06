@@ -1,6 +1,12 @@
 --- Entity
 --
 
+local Table = require(script.Parent.Table)
+
+local TableContains = Table.Contains
+local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
+
+
 local ECSEntity = {
     ClassName = "ECSEntity";
 }
@@ -199,6 +205,8 @@ function ECSEntity.new(instance)
     
     self._IsBeingRemoved = false
     self._IsBeingDestroyed = false
+
+    self._IsEntity = true
 
 
     return self

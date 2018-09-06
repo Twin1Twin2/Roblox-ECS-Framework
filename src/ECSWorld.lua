@@ -4,6 +4,9 @@
 
 local RunService = game:GetService("RunService")
 
+local ECSEntity = require(script.Parent.ECSEntity)
+local ECSComponent = require(script.Parent.ECSComponent)
+
 local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
 
@@ -11,12 +14,17 @@ local IsEntity = Utilities.IsEntity
 local IsComponent = Utilities.IsComponent
 local IsComponentDescription = Utilities.IsComponentDescription
 local IsSystem = Utilities.IsSystem
+local IsResource = Utilities.IsResource
+local GetComponentsDataFromEntityInstance = Utilities.GetComponentsDataFromEntityInstance
 local GetEntityInstancesFromInstance = Utilities.GetEntityInstancesFromInstance
 local MergeComponentData = Utilities.MergeComponentData
 
 local TableCopy = Table.Copy
 local TableContains = Table.Contains
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
+
+local COMPONENT_DESC_CLASSNAME = Utilities.COMPONENT_DESC_CLASSNAME
+local SYSTEM_CLASSNAME = Utilities.SYSTEM_CLASSNAME
 
 
 local ECSWorld = {
@@ -29,7 +37,7 @@ ECSWorld.__index = ECSWorld
 --Entities
 
 function ECSWorld:HasEntity(entity)
-    assert(IsEntity(entity) == true)
+    assert(IsEntity(entity), "Object is not an entity!")
 
     return TableContains(self._Entities, entity)
 end
@@ -128,7 +136,7 @@ function ECSWorld:_CreateEntitiesFromInstanceList(instances, data, rootInstance)
         end
         
         local newEntity = self:_CreateEntityFromInstance(entityInstance, componentData)
-        table.insert(newEntities, newEntity)
+        newEntities[entityInstance] = newEntity
 
         if (isRootInstance == true) then
             rootEntity = newEntity
@@ -157,7 +165,7 @@ end
 
 
 function ECSWorld:_AddComponentToEntity(entity, componentName, componentData)
-    local newComponent = self:_CreateComponent(componentName, componentData)
+    local newComponent = self:_CreateComponentFromName(componentName, componentData)
 
     if (newComponent ~= nil) then
         entity:AddComponent(componentName, newComponent)
@@ -326,16 +334,21 @@ function ECSWorld:GetComponent(componentName)
 end
 
 
-function ECSWorld:CreateComponent(componentName, componentData)
+function ECSWorld:_CreateComponent(componentDescription, componentData)
+    local newComponent = ECSComponent.new(componentDescription, componentData)
+
+    return newComponent
+end
+
+
+function ECSWorld:_CreateComponentFromName(componentName, componentData)
     local componentDescription = self:GetComponent(componentName)
 
     if (componentDescription == nil) then
         return
     end
 
-    local newComponent = ECSComponent.new(componentDescription, componentData)
-
-    return newComponent
+    return self:_CreateComponent(componentDescription, componentData)
 end
 
 
@@ -384,7 +397,7 @@ end
 
 function ECSWorld:GetSystem(name)
     for _, system in pairs(self._Systems) do
-        if (system.Name == systemName) then
+        if (system.Name == name) then
             return system
         end
     end
@@ -443,7 +456,7 @@ function ECSWorld:UnregisterSystem(system)
             return
         end
     else
-        assert(IsSystem(system) == true)
+        assert(IsSystem(system))
 
         if (TableContains(self._Systems, system) == false) then
             return
@@ -483,17 +496,21 @@ end
 
 
 function ECSWorld:_CreateEntitiesFromResource(resource, parent, data)
-    resource = self:GetResourceFromObject(resourceObject)
+    resource = self:GetResourceFromObject(resource)
 
     if (resource == nil) then
         return nil, "Unable to load resource!"
     end
 
+    assert(parent == nil or typeof(parent) == "Instance")
+
+    data = data or {}
+    assert(type(data) == "table")
+
     local rootInstance, entityInstances = resource:Create()
+    rootInstance.Parent = parent
 
     local newEntities, rootEntity = self:_CreateEntitiesFromInstanceList(entityInstances, data, rootInstance)
-
-    rootInstance.Parent = parent
 
     return rootInstance, newEntities, rootEntity
 end
@@ -531,6 +548,8 @@ function ECSWorld.new(name)
 
     self._Systems = {}
     self._EntitySystems = {}
+
+    self._IsWorld = true
 
 
     return self
