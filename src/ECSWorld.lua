@@ -2,6 +2,7 @@
 --
 --
 
+local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
 
 local ECSEntity = require(script.Parent.ECSEntity)
@@ -18,6 +19,7 @@ local IsResource = Utilities.IsResource
 local GetComponentsDataFromEntityInstance = Utilities.GetComponentsDataFromEntityInstance
 local GetEntityInstancesFromInstance = Utilities.GetEntityInstancesFromInstance
 local MergeComponentData = Utilities.MergeComponentData
+local AddSystemToListByPriority = Utilities.AddSystemToListByPriority
 
 local TableCopy = Table.Copy
 local TableContains = Table.Contains
@@ -25,6 +27,8 @@ local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
 
 local COMPONENT_DESC_CLASSNAME = Utilities.COMPONENT_DESC_CLASSNAME
 local SYSTEM_CLASSNAME = Utilities.SYSTEM_CLASSNAME
+
+local ENTITY_TAG_NAME_POSTFIX = "_ENTITY"
 
 
 local ECSWorld = {
@@ -34,7 +38,7 @@ local ECSWorld = {
 ECSWorld.__index = ECSWorld
 
 
---Entities
+-- Entities
 
 function ECSWorld:HasEntity(entity)
     assert(IsEntity(entity), "Object is not an entity!")
@@ -49,7 +53,7 @@ function ECSWorld:GetEntityFromInstance(instance)
 end
 
 
-function ECSWorld:GetEntityContainingInstance(instance) --need to redo
+function ECSWorld:GetEntityContainingInstance(instance) -- need to redo(?)
     assert(typeof(instance) == "Instance")
 
     local currentEntity = nil
@@ -70,7 +74,7 @@ function ECSWorld:GetEntityContainingInstance(instance) --need to redo
 end
 
 
-function ECSWorld:WaitForEntityWithInstance(instance, maxWaitTime)   --idk how to do this, but this will do
+function ECSWorld:WaitForEntityWithInstance(instance, maxWaitTime)   -- idk how to do this, but this will do
     assert(typeof(instance) == "Instance")
     assert(maxWaitTime == nil or (type(maxWaitTime) == "number" and maxWaitTime >= 0), "Invalid Arg [2]")
 
@@ -80,7 +84,7 @@ function ECSWorld:WaitForEntityWithInstance(instance, maxWaitTime)   --idk how t
         return entity
     end
 
-    --big old wait
+    -- big old wait
     local startTime = tick()
 
     while (entity == nil and (maxWaitTime == nil or tick() - startTime < maxWaitTime)) do
@@ -105,6 +109,7 @@ end
 function ECSWorld:_CreateEntity(instance, componentList)
     local entity = ECSEntity.new(instance)
 
+    CollectionService:AddTag(entity.Instance, self._ENTITY_TAG_NAME)
     self:_AddComponentsToEntity(entity, componentList)
 
     return entity
@@ -143,8 +148,8 @@ function ECSWorld:_CreateEntitiesFromInstanceList(instances, data, rootInstance)
         end
     end
 
-    if (rootInstance ~= nil and rootEntity == nil) then     --if root is not an entity
-        rootInstance.ChildRemoved:Connect(function(child)   --remove automatically if it has no children
+    if (rootInstance ~= nil and rootEntity == nil) then     -- if root is not an entity (should this be rewritten?)
+        rootInstance.ChildRemoved:Connect(function(child)   -- remove automatically if it has no children
             if (#rootInstance:GetChildren() == 0) then
                 rootInstance:Destroy()
             end
@@ -222,6 +227,8 @@ end
 
 
 function ECSWorld:CreateEntity(instance, componentList)
+    assert(instance == nil or typeof(instance) == "Instance")
+
     componentList = componentList or {}
 
     local entity = self:_CreateEntityFromInstance(instance, componentList)
@@ -233,6 +240,8 @@ end
 
 
 function ECSWorld:CreateEntitiesFromInstance(instance, data)
+    assert(instance == nil or typeof(instance) == "Instance")
+
     local newEntities, rootEntity = self:_CreateEntitiesFromInstance(instance, data)
 
     for _, entity in pairs(newEntities) do
@@ -282,6 +291,15 @@ function ECSWorld:RemoveEntity(entity)
 end
 
 
+function ECSWorld:RemoveEntities(entities)
+    assert(type(entities) == "table")
+
+    for _, entity in pairs(entities) do
+        self:RemoveEntity(entity)
+    end
+end
+
+
 function ECSWorld:ForceRemoveEntity(entity)
     local instance = entity.Instance
 
@@ -327,7 +345,16 @@ function ECSWorld:_UpdateEntity(entity)
 end
 
 
---Components
+function ECSWorld:_EntityInstanceDestroyed(instance)
+    local entity = self:GetEntityFromInstance(instance)
+
+    if (entity ~= nil) then
+        self:_RemoveEntity(entity)
+    end
+end
+
+
+-- Components
 
 function ECSWorld:GetComponent(componentName)
     return self._RegisteredComponents[componentName]
@@ -393,7 +420,7 @@ function ECSWorld:UnregisterComponent(componentDesc)
 end
 
 
---Systems
+-- Systems
 
 function ECSWorld:GetSystem(name)
     for _, system in pairs(self._Systems) do
@@ -407,7 +434,7 @@ end
 
 
 function ECSWorld:_InitializeSystem(system)
-    --check all components if they are registered with this world(?) so that they can be added through
+    -- check all components if they are registered with this world(?) so that they can be added through
     local componentList = system:GetComponentList()
 
     for _, componentName in pairs(componentList) do
@@ -419,9 +446,9 @@ function ECSWorld:_InitializeSystem(system)
     system:Initialize()
     system._IsInitialized = true
 
-    --check if system operates on entities by checking the components it needs
+    -- check if system operates on entities by checking the components it needs
     if (#componentList > 0) then
-        table.insert(self._EntitySystems, system)
+        AddSystemToListByPriority(system, self._EntitySystems)
         
         for _, entity in pairs(self._Entities) do
             if (system:EntityBelongs(entity) == true) then
@@ -440,7 +467,7 @@ function ECSWorld:RegisterSystem(system, initializeSystem)
     self:UnregisterSystem(systemName)
 
     system.World = self
-    table.insert(self._Systems, system)
+    AddSystemToListByPriority(system, self._Systems)
 
     if (initializeSystem ~= false) then
         self:_InitializeSystem(system)
@@ -465,7 +492,7 @@ function ECSWorld:UnregisterSystem(system)
 
     AttemptRemovalFromTable(self._EntitySystems, system)
 
-    --remove registered entities from system
+    -- remove registered entities from system
     local entities = TableCopy(system.Entities)
 
     for _, entity in pairs(entities) do
@@ -477,7 +504,16 @@ function ECSWorld:UnregisterSystem(system)
 end
 
 
---Resources and Prefabs
+function ECSWorld:PrintRegisteredSystems()
+    print(self.Name .. " - Number of Systems = " .. tostring(#self._Systems))
+    for index, system in pairs(self._Systems) do
+        local name = system.Name
+        print("    " .. tostring(index) .. "    " .. name)
+    end
+end
+
+
+-- Resources and Prefabs
 
 function ECSWorld:GetResource(name)
     return self._RegisteredResources[name]
@@ -492,6 +528,41 @@ function ECSWorld:GetResourceFromObject(resource)
     end
 
     return nil
+end
+
+
+function ECSWorld:RegisterResource(resource, resourceName)
+    assert(IsResource(resource) == true)
+
+    resourceName = resourceName or resource.ResourceName
+    assert(type(resourceName) == "string")
+
+    self:UnregisterResource(resourceName)
+
+    self._RegisteredResources[resourceName] = resource
+end
+
+
+function ECSWorld:UnregisterResource(resource)
+    local resourceName
+    
+    if (type(resource) == "string") then
+        resourceName = resource
+        resource = self:GetResource(resourceName)
+
+        if (resource == nil) then
+            return
+        end
+    else
+        assert(IsResource(resource))
+        resourceName = resource.ResourceName
+
+        if (resource ~= self._RegisteredResources[resourceName]) then
+            return
+        end
+    end
+
+    self._RegisteredResources[resourceName] = nil
 end
 
 
@@ -529,17 +600,45 @@ function ECSWorld:CreateEntitiesFromResource(resource, parent, data)
 end
 
 
---Constructors and Destructors
+-- Constructors and Destructors
 
 function ECSWorld:Destroy()
+    for _, resource in pairs(self._RegisteredResources) do
+        self:UnregisterResource(resource)
+    end
+
+    for _, component in pairs(self._RegisteredComponents) do
+        self:UnregisterComponent(component)
+    end
+
+    for _, system in pairs(self._Systems) do
+        self:UnregisterSystem(system)
+    end
+
+    for _, entity in pairs(self._Entities) do
+        self:ForceRemoveEntity(entity)
+    end
+
+    self._Entities = nil
+
+    self._RegisteredComponents = nil
+    self._RegisteredResources = nil
+
+    self._Systems = nil
+    self._EntitySystems = nil
+
+    self._EntityInstanceRemovedConnection:Disconnect()
+
     setmetatable(self, nil)
 end
 
 
 function ECSWorld.new(name)
+    assert(type(name) == "string")
+
     local self = setmetatable({}, ECSWorld)
 
-    self.Name = name or "WORLD"
+    self.Name = name
 
     self._Entities = {}
 
@@ -550,6 +649,14 @@ function ECSWorld.new(name)
     self._EntitySystems = {}
 
     self._IsWorld = true
+
+    -- kinda hacky way to detect when an entity's instance is destroyed
+    local entityTagName = name .. ENTITY_TAG_NAME_POSTFIX   -- should this be made more unique? maybe tostring(tick())?
+
+    self._ENTITY_TAG_NAME = entityTagName
+    self._EntityInstanceRemovedConnection = CollectionService:GetInstanceRemovedSignal(entityTagName):Connect(function(instance)
+        self:_EntityInstanceDestroyed(instance)
+    end)
 
 
     return self

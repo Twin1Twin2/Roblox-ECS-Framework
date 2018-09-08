@@ -236,6 +236,8 @@ function ECSSystem.new(name)
 
     self._CachedComponentList = nil
 
+    self.UpdatePriority = -1   --higher the number, the lower the priority (when it will be updated)
+
     self.IsServerSide = nil
 
 

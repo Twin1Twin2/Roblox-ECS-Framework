@@ -92,7 +92,7 @@ function ECSRobloxResource.new(instance, name)
 
     self._Resource = instance
 
-    self.ResourceName = name or "INSTANCE_RESOURCE"
+    self.Name = name or "INSTANCE_RESOURCE"
 
     self._EntityPaths = GetEntityPathsFromInstance(instance)
 

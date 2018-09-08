@@ -195,4 +195,32 @@ end
 Utilities.PrintComponentList = PrintComponentList
 
 
+local function AddSystemToListByPriority(system, list)
+    local priority = system.UpdatePriority
+
+    --find a place to put it
+    local wasInserted = false
+
+    if (priority >= 0) then
+        for index, system in pairs(list) do
+            local otherPriority = system.UpdatePriority
+
+            if (otherPriority < 0) then
+                break
+            elseif (otherPriority < priority) then
+                table.insert(list, index, system)
+                wasInserted = true
+                break
+            end
+        end
+    end
+
+    if (wasInserted == false) then
+        table.insert(list, system)
+    end
+end
+
+Utilities.AddSystemToListByPriority = AddSystemToListByPriority
+
+
 return Utilities

@@ -92,6 +92,7 @@ function ECSComponentDescription.new(name)
     self._IsComponentDescription = true
 
     self.IsServerSide = nil
+    self.IsServerOnly = false
 
 
     return self
