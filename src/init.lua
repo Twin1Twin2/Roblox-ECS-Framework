@@ -37,6 +37,9 @@ ECSFramework.IsResource = Utilities.IsResource
 
 ECSFramework.PrintComponentList = Utilities.PrintComponentList
 
+ECSFramework.GetEntityInListFromInstance = Utilities.GetEntityInListFromInstance
+ECSFramework.GetEntityInListContainingInstance = Utilities.GetEntityInListContainingInstance
+
 
 -- Classes
 

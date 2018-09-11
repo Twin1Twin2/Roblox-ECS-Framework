@@ -223,4 +223,34 @@ end
 Utilities.AddSystemToListByPriority = AddSystemToListByPriority
 
 
+function Utilities.GetEntityInListFromInstance(entityList, instance)
+    assert(typeof(instance) == "Instance")
+
+    for _, entity in pairs(entityList) do
+        if (entity.Instance == instance) then
+            return entity
+        end
+    end
+
+    return nil
+end
+
+
+function Utilities.GetEntityInListContainingInstance(entityList, instance)
+    assert(typeof(instance) == "Instance")
+
+    local currentEntity = nil
+
+    for _, entity in pairs(entityList) do
+        if (entity:ContainsInstance(instance) == true) then
+            if (currentEntity ~= nil or currentEntity.Instance:IsAncestorOf(entity.Instance) == true) then
+                currentEntity = entity
+            end
+        end
+    end
+
+    return currentEntity
+end
+
+
 return Utilities
