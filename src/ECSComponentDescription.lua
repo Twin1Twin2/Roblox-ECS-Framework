@@ -26,7 +26,9 @@ local INDEX_BLACKLIST = {
 
 
 local function MergeComponentWithData(component, data)
-    AltMerge(component, data)
+    for index, value in pairs(data) do
+        component[index] = value
+    end
 
     return component
 end

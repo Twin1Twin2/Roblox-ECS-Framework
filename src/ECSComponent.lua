@@ -1,4 +1,5 @@
 
+local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
 
 local TableContains = Table.Contains
@@ -21,7 +22,9 @@ function ECSComponent:CopyData()
     local data = {}
 
     for i, _ in pairs(componentDesc.Data) do
-        data[i] = DeepCopy(self[i])
+        local d = self[i]
+        -- prevent copying entities?
+        data[i] = DeepCopy(d)
     end
 
     return data

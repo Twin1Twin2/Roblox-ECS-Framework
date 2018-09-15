@@ -243,7 +243,7 @@ function Utilities.GetEntityInListContainingInstance(entityList, instance)
 
     for _, entity in pairs(entityList) do
         if (entity:ContainsInstance(instance) == true) then
-            if (currentEntity ~= nil or currentEntity.Instance:IsAncestorOf(entity.Instance) == true) then
+            if (currentEntity == nil or currentEntity.Instance:IsAncestorOf(entity.Instance) == true) then
                 currentEntity = entity
             end
         end
