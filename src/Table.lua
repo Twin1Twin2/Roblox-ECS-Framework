@@ -211,4 +211,25 @@ function lib.TableContainsAnyIndex(t, ...)
 end
 
 
+local function AltDeepCopy(source)   --copied from RobloxComponentSystem by tiffany352
+	if typeof(source) == 'table' then
+		local new = {}
+		for key, value in pairs(source) do
+			new[AltDeepCopy(key)] = AltDeepCopy(value)
+		end
+		return new
+	end
+	return source
+end
+
+local function AltMerge(to, from)   --copied from RobloxComponentSystem by tiffany352
+	for key, value in pairs(from or {}) do
+		to[AltDeepCopy(key)] = AltDeepCopy(value)
+	end
+end
+
+lib.AltDeepCopy = AltDeepCopy
+lib.AltMerge = AltMerge
+
+
 return lib

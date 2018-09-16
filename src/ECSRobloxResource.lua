@@ -1,17 +1,13 @@
+--- Resource
+--
 
 local Utilities = require(script.Parent.Utilities)
 
 local CanInstanceBeAnEntity = Utilities.CanInstanceBeAnEntity
-local CanInstanceBeAPrefab = Utilities.CanInstanceBeAPrefab
-
 local GetEntityInstancesFromInstance = Utilities.GetEntityInstancesFromInstance
 
-local ENTITY_INSTANCE_COMPONENT_DATA_NAME = Utilities.ENTITY_INSTANCE_COMPONENT_DATA_NAME
-local ENTITY_INSTANCE_PREFAB_DATA_NAME = Utilities
-local INVALID_NAMES = Utilities.INVALID_ENTITY_INSTANCE_NAMES
 
 local PATH_SEPARATOR = "/"
-
 
 local function CompilePath(instance, rootInstance, path)
     path = path or ""
@@ -64,18 +60,28 @@ ECSRobloxResource.__index = ECSRobloxResource
 
 
 function ECSRobloxResource:Create()
-    local newInstance = self.Resource:Clone()
+    assert(typeof(self._Resource) == "Instance")
+
+    local newInstance = self._Resource:Clone()
 
     local entityInstances = {}
-    local prefabData = {}
 
-    for _, path in pairs(self.EntityPaths) do
+    for _, path in pairs(self._EntityPaths) do
         local entityInstance = ParsePath(newInstance, path)
 
         table.insert(entityInstances, entityInstance)
     end
 
+
     return newInstance, entityInstances
+end
+
+
+function ECSRobloxResource:Destroy()
+    self._Resource = nil
+    self._EntityPaths = nil
+    
+    setmetatable(self, nil)
 end
 
 
@@ -84,12 +90,13 @@ function ECSRobloxResource.new(instance, name)
 
     local self = setmetatable({}, ECSRobloxResource)
 
-    self.Resource = instance
-    self.ResourceName = name or "DEFAULT_RESOURCE_NAME"
+    self._Resource = instance
 
-    self.EntityPaths = GetEntityPathsFromInstance(instance)
+    self.Name = name or "INSTANCE_RESOURCE"
 
-    self.IsRootInstanceAnEntity = CanInstanceBeAnEntity(instance)
+    self._EntityPaths = GetEntityPathsFromInstance(instance)
+
+    self._IsRootInstanceAnEntity = CanInstanceBeAnEntity(instance)
 
     self._IsResource = true
 

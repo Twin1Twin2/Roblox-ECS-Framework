@@ -1,27 +1,11 @@
 
+local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
 
 local TableContains = Table.Contains
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
-local Merge = Table.Merge
+local AltMerge = Table.AltMerge
 local DeepCopy = Table.DeepCopy
-
-local function AltDeepCopy(source)   --copied from RobloxComponentSystem by tiffany352
-	if typeof(source) == 'table' then
-		local new = {}
-		for key, value in pairs(source) do
-			new[AltDeepCopy(key)] = AltDeepCopy(value)
-		end
-		return new
-	end
-	return source
-end
-
-local function AltMerge(to, from)   --copied from RobloxComponentSystem by tiffany352
-	for key, value in pairs(from or {}) do
-		to[DeepCopy(key)] = DeepCopy(value)
-	end
-end
 
 
 local ECSComponent = {
@@ -29,6 +13,22 @@ local ECSComponent = {
 }
 
 ECSComponent.__index = ECSComponent
+
+
+function ECSComponent:CopyData()
+    local componentDesc = self._ComponentDescription
+    assert(componentDesc ~= nil)
+
+    local data = {}
+
+    for i, _ in pairs(componentDesc.Data) do
+        local d = self[i]
+        -- prevent copying entities?
+        data[i] = DeepCopy(d)
+    end
+
+    return data
+end
 
 
 function ECSComponent:Initialize(entity)
@@ -40,7 +40,7 @@ end
 
 
 function ECSComponent:Destroy()
-    self._ComponentDescription:Destroy(self)
+    self._ComponentDescription:DestroyComponent(self)
 
     setmetatable(self, nil)
 end
@@ -53,13 +53,14 @@ function ECSComponent.new(componentDesc, data)
     assert(type(data) == "table")
 
     local self = setmetatable({}, ECSComponent)
+
+    self._IsComponent = true
     
     AltMerge(self, componentDesc.Data)
 
     local newSelf = componentDesc:Create(self, data)
     self = newSelf or self
 
-    self._IsComponent = true
     self._IsInitialized = false
 
     self._ComponentDescription = componentDesc  --reference here yea b/c you can already get it from ecsworld

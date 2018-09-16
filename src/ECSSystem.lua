@@ -1,27 +1,18 @@
+--- System
+--
 
+local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
+
+local GetEntityInListFromInstance = Utilities.GetEntityInListFromInstance
+local GetEntityInListContainingInstance = Utilities.GetEntityInListContainingInstance
 
 local TableContains = Table.Contains
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
 local Merge = Table.Merge
 local DeepCopy = Table.DeepCopy
-
-local function AltDeepCopy(source)   --copied from RobloxComponentSystem by tiffany352
-	if typeof(source) == 'table' then
-		local new = {}
-		for key, value in pairs(source) do
-			new[AltDeepCopy(key)] = AltDeepCopy(value)
-		end
-		return new
-	end
-	return source
-end
-
-local function AltMerge(to, from)   --copied from RobloxComponentSystem by tiffany352
-	for key, value in pairs(from or {}) do
-		to[DeepCopy(key)] = DeepCopy(value)
-	end
-end
+local TableCopy = Table.Copy
+local AltMerge = Table.AltMerge
 
 
 local ECSSystem = {
@@ -59,12 +50,32 @@ local INDEX_BLACKLIST = {
     Entities = true;
 }
 
-local VIRTUAL_FUNCTIONS = {
-    Initialize = true;
-    EntityAdded = true;
-    EntityRemoved = true;
-}
---]]
+
+function ECSSystem:GetComponentList()
+    if (self._CachedComponentList == nil) then
+        self:UpdateComponentList()
+    end
+
+    return self._CachedComponentList
+end
+
+
+function ECSSystem:EntityBelongs(entity)
+    local systemComponents = self:GetComponentList()
+
+    return #systemComponents > 0 and entity:HasComponents(systemComponents)
+end
+
+
+function ECSSystem:GetEntityFromInstance(instance)
+    return GetEntityInListFromInstance(self.Entities, instance)
+end
+
+
+function ECSSystem:GetEntityInListContainingInstance(instance)
+    return GetEntityInListContainingInstance(self.Entities, instance)
+end
+
 
 function ECSSystem:_AddEntity(entity)
     if (TableContains(self.Entities, entity) == false) then
@@ -139,6 +150,18 @@ function ECSSystem:RemoveEntity(entity)
 end
 
 
+function ECSSystem:UpdateComponentList()
+    local componentList = TableCopy(self.Components)
+
+    for _, componentGroup in pairs(self.ComponentGroups) do
+        local componentGroupComponents = componentGroup:GetComponentList()
+        AltMerge(componentList, componentGroupComponents)
+    end
+
+    self._CachedComponentList = componentList
+end
+
+
 function ECSSystem:Initialize()
 
 end
@@ -167,6 +190,17 @@ end
 
 
 function ECSSystem:Destroy()
+    if (self.World ~= nil) then
+        self.World:UnregisterSystem(self)
+    end
+
+    self._EntitiesToAdd = {}
+    self._EntitiesToRemove = {}
+
+    self.World = nil
+    self.Components = nil    --the names of the components this system needs
+    self.Entities = nil
+
     setmetatable(self, nil)
 end
 
@@ -194,7 +228,7 @@ function ECSSystem:Extend(name)
 end
 
 
-function ECSSystem.new(name, world)
+function ECSSystem.new(name)
     assert(type(name) == "string")
 
     local self = setmetatable({}, ECSSystem)
@@ -202,16 +236,21 @@ function ECSSystem.new(name, world)
     self._IsSystem = true
     self._IsInitialized = false
 
-    self.SystemName = name
+    self.Name = name
 
     self.LockMode = LOCKMODE_OPEN
 
     self._EntitiesToAdd = {}
     self._EntitiesToRemove = {}
 
-    self.World = world or nil
+    self.World = nil
     self.Components = {}    --the names of the components this system needs
+    self.ComponentGroups = {}
     self.Entities = {}
+
+    self._CachedComponentList = nil
+
+    self.UpdatePriority = -1   --higher the number, the lower the priority (when it will be updated)
 
     self.IsServerSide = nil
 
