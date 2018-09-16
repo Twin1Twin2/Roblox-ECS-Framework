@@ -145,7 +145,7 @@ function ECSWorld_Server:CreateEntitiesFromInstance(instance, data, isServerSide
 
     for _, entity in pairs(newEntities) do
         entity._IsServerSide = isServerSide
-        self:_UpdateEntity(entity)
+        self:_AddEntity(entity)
     end
 
     if (isServerSide == false) then

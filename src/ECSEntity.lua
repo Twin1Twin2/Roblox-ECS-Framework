@@ -85,7 +85,7 @@ function ECSEntity:_RemoveComponent(componentName, component)
 end
 
 
-function ECSEntity:AddComponent(componentName, component)
+function ECSEntity:AddComponentToEntity(componentName, component)
     local otherComponent = self:GetComponent(componentName)
 
     if (otherComponent ~= nil) then
@@ -97,12 +97,28 @@ function ECSEntity:AddComponent(componentName, component)
 end
 
 
-function ECSEntity:RemoveComponent(componentName)
+function ECSEntity:RemoveComponentFromEntity(componentName)
     local component = self:GetComponent(componentName)
 
     if (component ~= nil) then
         self:_RemoveComponent(componentName, component)
     end
+end
+
+
+function ECSEntity:AddComponents(componentList)
+    self.World:AddComponentsToEntity(self, componentList)
+end
+
+
+function ECSEntity:RemoveComponents(...)
+    local componentList = {...}
+
+    if (type(componentList[1]) == "table") then
+        componentList = componentList[1]
+    end
+
+    self.World:RemoveComponentsFromEntity(self, componentList)
 end
 
 
@@ -132,17 +148,27 @@ end
 
 -- Update
 
-function ECSEntity:Update()
+function ECSEntity:UpdateAddedComponents()
     for componentName, component in pairs(self._AddedComponents) do
         self:_InitializeComponent(component)
     end
 
+    self._AddedComponents = {}
+end
+
+
+function ECSEntity:UpdateRemovedComponents()
     for componentName, component in pairs(self._RemovedComponents) do
         component:Destroy()
     end
-
-    self._AddedComponents = {}
+    
     self._RemovedComponents = {}
+end
+
+
+function ECSEntity:Update()
+    self:UpdateAddedComponents()
+    self:UpdateRemovedComponents()
 end
 
 
@@ -163,7 +189,7 @@ function ECSEntity:Destroy()
     self._IsBeingDestroyed = true
 
     for componentName, _ in pairs(self._Components) do
-        self:RemoveComponent(componentName)
+        self:_RemoveComponent(componentName, nil)
     end
 
     self:Update()
@@ -175,6 +201,8 @@ function ECSEntity:Destroy()
 
     self.World = nil
     self._Components = nil
+    self._AddedComponents = nil
+    self._RemovedComponents = nil
     self._RegisteredSystems = nil
     
 
@@ -205,6 +233,7 @@ function ECSEntity.new(instance)
     
     self._IsBeingRemoved = false
     self._IsBeingDestroyed = false
+    self._IsBeingUpdated = false
 
     self._IsEntity = true
 

@@ -173,13 +173,13 @@ function ECSWorld:_AddComponentToEntity(entity, componentName, componentData)
     local newComponent = self:_CreateComponentFromName(componentName, componentData)
 
     if (newComponent ~= nil) then
-        entity:AddComponent(componentName, newComponent)
+        entity:AddComponentToEntity(componentName, newComponent)
     end
 end
 
 
 function ECSWorld:_RemoveComponentFromEntity(entity, componentName)
-    entity:RemoveComponent(componentName)
+    entity:RemoveComponentFromEntity(componentName)
 end
 
 
@@ -208,6 +208,7 @@ function ECSWorld:_RemoveEntity(entity)
     end
 
     entity._IsBeingRemoved = true   --set flag to true
+    entity._IsBeingUpdated = false
 
     local registeredSystems = entity._RegisteredSystems
 
@@ -314,16 +315,22 @@ function ECSWorld:ForceRemoveEntity(entity)
         self._Entities[instance] = nil
     end
 
-    pcall(function()
+    if (type(entity.Destroy) == "function") then
         entity:Destroy()
-    end)
+    end
 end
 
 
 function ECSWorld:_UpdateEntity(entity)
+    -- need to be able to add/remove components and remove the entity while it's being added/removed
+    -- 
+
     if (entity._IsBeingRemoved == true) then
         return
     end
+
+    entity._IsBeingUpdated = true
+    entity:UpdateAddedComponents()
 
     local registeredSystems = TableCopy(entity._RegisteredSystems)
 
@@ -332,16 +339,27 @@ function ECSWorld:_UpdateEntity(entity)
         
         if (system ~= nil and system:EntityBelongs(entity) == false) then
             system:RemoveEntity(entity)
-        end
+
+            -- don't continue if components have changed or entity is removed
+            if (entity == nil or entity._IsBeingUpdated == false) then
+                return
+            end
+        end        
     end
 
     for _, system in pairs(self._EntitySystems) do
         if (system:EntityBelongs(entity) == true) then
             system:AddEntity(entity)
+
+            -- don't continue if components have changed or entity is removed
+            if (entity == nil or entity._IsBeingUpdated == false) then
+                return
+            end
         end
     end
 
-    entity:Update()
+    entity:UpdateRemovedComponents()
+    entity._IsBeingUpdated = false
 end
 
 
