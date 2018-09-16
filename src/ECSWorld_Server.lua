@@ -41,7 +41,7 @@ end
 
 
 local function IsInstanceVisibleByClient(instance)
-    return ServerStorage:IsAncestorOf(instance) or ServerScriptService:IsAncestorOf(instance)
+    return not (ServerStorage:IsAncestorOf(instance) or ServerScriptService:IsAncestorOf(instance))
 end
 
 

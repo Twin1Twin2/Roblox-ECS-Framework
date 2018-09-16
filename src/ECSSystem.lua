@@ -1,7 +1,11 @@
 --- System
 --
 
+local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
+
+local GetEntityInListFromInstance = Utilities.GetEntityInListFromInstance
+local GetEntityInListContainingInstance = Utilities.GetEntityInListContainingInstance
 
 local TableContains = Table.Contains
 local AttemptRemovalFromTable = Table.AttemptRemovalFromTable
@@ -60,6 +64,16 @@ function ECSSystem:EntityBelongs(entity)
     local systemComponents = self:GetComponentList()
 
     return #systemComponents > 0 and entity:HasComponents(systemComponents)
+end
+
+
+function ECSSystem:GetEntityFromInstance(instance)
+    return GetEntityInListFromInstance(self.Entities, instance)
+end
+
+
+function ECSSystem:GetEntityInListContainingInstance(instance)
+    return GetEntityInListContainingInstance(self.Entities, instance)
 end
 
 

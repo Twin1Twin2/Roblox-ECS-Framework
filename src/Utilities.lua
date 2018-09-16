@@ -224,6 +224,10 @@ Utilities.AddSystemToListByPriority = AddSystemToListByPriority
 
 
 function Utilities.GetEntityInListFromInstance(entityList, instance)
+    if (instance == nil) then
+        return nil
+    end
+
     assert(typeof(instance) == "Instance")
 
     for _, entity in pairs(entityList) do
@@ -237,6 +241,10 @@ end
 
 
 function Utilities.GetEntityInListContainingInstance(entityList, instance)
+    if (instance == nil) then
+        return nil
+    end
+    
     assert(typeof(instance) == "Instance")
 
     local currentEntity = nil
