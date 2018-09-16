@@ -3,7 +3,6 @@
 
 local ECSComponentDescription = require(script.ECSComponentDescription)
 local ECSComponentGroup = require(script.ECSComponentGroup)
-local ECSComponentList = require(script.ECSComponentList)
 local ECSSystem = require(script.ECSSystem)
 local ECSWorld = require(script.ECSWorld)
 local ECSWorld_Server = require(script.ECSWorld_Server)
@@ -45,7 +44,6 @@ ECSFramework.GetEntityInListContainingInstance = Utilities.GetEntityInListContai
 
 ECSFramework.Component = ECSComponentDescription
 ECSFramework.ComponentGroup = ECSComponentGroup
-ECSFramework.ComponentList = ECSComponentList
 
 ECSFramework.System = ECSSystem
 

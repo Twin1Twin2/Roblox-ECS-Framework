@@ -75,6 +75,11 @@ function Utilities.IsComponentGroup(object)
 end
 
 
+function Utilities.IsComponentRequirement(object)
+    return type(object) == "table" and object._IsComponentRequirement == true
+end
+
+
 function Utilities.IsSystem(object)
     return type(object) == "table" and object._IsSystem == true
 end

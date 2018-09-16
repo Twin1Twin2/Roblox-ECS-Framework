@@ -1,8 +1,12 @@
 --- System
 --
 
+local ECSComponentRequirement = require(script.Parent.ECSComponentRequirement)
+
 local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
+
+local IsComponentRequirement = Utilities.IsComponentRequirement
 
 local GetEntityInListFromInstance = Utilities.GetEntityInListFromInstance
 local GetEntityInListContainingInstance = Utilities.GetEntityInListContainingInstance
@@ -52,18 +56,12 @@ local INDEX_BLACKLIST = {
 
 
 function ECSSystem:GetComponentList()
-    if (self._CachedComponentList == nil) then
-        self:UpdateComponentList()
-    end
-
-    return self._CachedComponentList
+    return self.ComponentRequirement:GetComponentList()
 end
 
 
 function ECSSystem:EntityBelongs(entity)
-    local systemComponents = self:GetComponentList()
-
-    return #systemComponents > 0 and entity:HasComponents(systemComponents)
+    return self.ComponentRequirement:EntityBelongs(entity)
 end
 
 
@@ -150,19 +148,17 @@ function ECSSystem:RemoveEntity(entity)
 end
 
 
-function ECSSystem:UpdateComponentList()
-    local componentList = TableCopy(self.Components)
+function ECSSystem:Initialize()
 
-    for _, componentGroup in pairs(self.ComponentGroups) do
-        local componentGroupComponents = componentGroup:GetComponentList()
-        AltMerge(componentList, componentGroupComponents)
-    end
-
-    self._CachedComponentList = componentList
 end
 
 
-function ECSSystem:Initialize()
+function ECSSystem:RegisteredToWorld(world)
+
+end
+
+
+function ECSSystem:UnregisteredFromWorld(world)
 
 end
 
@@ -205,31 +201,9 @@ function ECSSystem:Destroy()
 end
 
 
-function ECSSystem:Extend(name)
+function ECSSystem.new(name, componentRequirement)
     assert(type(name) == "string")
-
-    local this = {}
-    
-    this.SystemName = name
-
-    function this.new()
-        local t = ECSSystem.new(name)
-
-        for index, value in pairs(this) do
-            if (INDEX_BLACKLIST[index] == nil) then
-                t[index] = DeepCopy(value)
-            end
-        end
-
-        return t
-    end
-
-    return this
-end
-
-
-function ECSSystem.new(name)
-    assert(type(name) == "string")
+    assert(componentRequirement == nil or IsComponentRequirement(componentRequirement))
 
     local self = setmetatable({}, ECSSystem)
 
@@ -244,11 +218,8 @@ function ECSSystem.new(name)
     self._EntitiesToRemove = {}
 
     self.World = nil
-    self.Components = {}    --the names of the components this system needs
-    self.ComponentGroups = {}
+    self.ComponentRequirement = componentRequirement or ECSComponentRequirement.new(name)
     self.Entities = {}
-
-    self._CachedComponentList = nil
 
     self.UpdatePriority = -1   --higher the number, the lower the priority (when it will be updated)
 

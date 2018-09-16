@@ -486,6 +486,7 @@ function ECSWorld:RegisterSystem(system, initializeSystem)
 
     system.World = self
     AddSystemToListByPriority(system, self._Systems)
+    system:RegisteredToWorld(self)
 
     if (initializeSystem ~= false) then
         self:_InitializeSystem(system)
@@ -517,6 +518,7 @@ function ECSWorld:UnregisterSystem(system)
         system:RemoveEntity(entity)
     end
 
+    system:UnregisteredFromWorld(self)
     system.World = nil
     AttemptRemovalFromTable(self._Systems, system)
 end
