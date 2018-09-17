@@ -1,4 +1,4 @@
---- Need to rename
+--- ComponentRequirement
 -- To Do: Include ComponentGroup
 
 local Utilities = require(script.Parent.Utilities)
@@ -15,7 +15,7 @@ local function AddNameToListIfNotInOther(instanceName, name, list, listName, oth
     -- make sure it isn't already in the other list
     for otherListName, otherList in pairs(otherLists) do
         if (TableContains(otherList, name) == true) then
-            warn("ComponentRequirement - " .. instanceName .. "Unable to add \"" .. name .. "\ to list \"" .. listName .. "\"! Already in list \"" .. otherListName .. "\"!")
+            warn("ComponentRequirement - " .. instanceName .. "Unable to add \"" .. name .. "\" to list \"" .. listName .. "\"! Already in list \"" .. otherListName .. "\"!")
             return
         end
     end
@@ -115,7 +115,7 @@ function ECSComponentRequirement:AllFromList(list)
     if (type(list) == "table") then
         AddComponentNamesToList(self.Name, list, self.AllList, "All", { Exclude = self.ExcludeList })
     end
-    
+
     return self     -- for chaining
 end
 

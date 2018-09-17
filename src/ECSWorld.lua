@@ -12,7 +12,6 @@ local Utilities = require(script.Parent.Utilities)
 local Table = require(script.Parent.Table)
 
 local IsEntity = Utilities.IsEntity
-local IsComponent = Utilities.IsComponent
 local IsComponentDescription = Utilities.IsComponentDescription
 local IsSystem = Utilities.IsSystem
 local IsResource = Utilities.IsResource
@@ -89,7 +88,7 @@ function ECSWorld:WaitForEntityWithInstance(instance, maxWaitTime)   -- idk how 
 
     while (entity == nil and (maxWaitTime == nil or tick() - startTime < maxWaitTime)) do
         RunService.Heartbeat:Wait()
-        entity = self:GetEntityFromInstance(instance) 
+        entity = self:GetEntityFromInstance(instance)
     end
 
     return entity
@@ -139,7 +138,7 @@ function ECSWorld:_CreateEntitiesFromInstanceList(instances, data, rootInstance)
         else
             componentData = data[entityInstanceName] or {}
         end
-        
+
         local newEntity = self:_CreateEntityFromInstance(entityInstance, componentData)
         newEntities[entityInstance] = newEntity
 
@@ -189,7 +188,7 @@ function ECSWorld:_AddComponentsToEntity(entity, componentList)
             componentName = componentData
             componentData = {}
         end
-        
+
         self:_AddComponentToEntity(entity, componentName, componentData)
     end
 end
@@ -323,7 +322,7 @@ end
 
 function ECSWorld:_UpdateEntity(entity)
     -- need to be able to add/remove components and remove the entity while it's being added/removed
-    -- 
+    -- hmm
 
     if (entity._IsBeingRemoved == true) then
         return
@@ -336,7 +335,7 @@ function ECSWorld:_UpdateEntity(entity)
 
     for _, systemName in pairs(registeredSystems) do
         local system = self:GetSystem(systemName)
-        
+
         if (system ~= nil and system:EntityBelongs(entity) == false) then
             system:RemoveEntity(entity)
 
@@ -344,7 +343,7 @@ function ECSWorld:_UpdateEntity(entity)
             if (entity == nil or entity._IsBeingUpdated == false) then
                 return
             end
-        end        
+        end
     end
 
     for _, system in pairs(self._EntitySystems) do
@@ -360,6 +359,29 @@ function ECSWorld:_UpdateEntity(entity)
 
     entity:UpdateRemovedComponents()
     entity._IsBeingUpdated = false
+end
+
+
+-- update an entity after it's components have changed or it has been added/removed
+-- a
+
+function ECSWorld:_UpdateEntity2(entity)
+    if (entity._IsBeingRemoved == true) then
+        return
+    end
+
+    -- iterate through entity systems in order of priority
+    for _, system in pairs(self._EntitySystems) do
+        -- check if system already has this entity (?)
+        -- if so
+            -- check if entity does not meet system's component requirement
+            -- if so
+                -- remove entity from system
+        -- else
+            -- check if entity meets system's component requirement
+            -- if so
+                -- add entity to system
+    end
 end
 
 
@@ -412,7 +434,7 @@ end
 
 function ECSWorld:UnregisterComponent(componentDesc)
     local componentName
-    
+
     if (type(componentDesc) == "string") then
         componentName = componentDesc
         componentDesc = self:GetComponent(componentDesc)
@@ -433,7 +455,7 @@ function ECSWorld:UnregisterComponent(componentDesc)
     for _, entity in pairs(self._Entities) do
         self:_RemoveComponentsFromEntity(entity, {componentName})
     end
-    
+
     self._RegisteredComponents[componentName] = nil
 end
 
@@ -467,7 +489,7 @@ function ECSWorld:_InitializeSystem(system)
     -- check if system operates on entities by checking the components it needs
     if (#componentList > 0) then
         AddSystemToListByPriority(system, self._EntitySystems)
-        
+
         for _, entity in pairs(self._Entities) do
             if (system:EntityBelongs(entity) == true) then
                 system:AddEntity(entity)
@@ -478,10 +500,10 @@ end
 
 
 function ECSWorld:RegisterSystem(system, initializeSystem)
-    assert(IsSystem(system) == true)
+    assert(IsSystem(system) == true, "ECSWorld :: RegisterSystem() Argument [1] is not a \"" .. SYSTEM_CLASSNAME .. "\"! ClassName = " .. tostring(system.ClassName))
 
     local systemName = system.Name
-    
+
     self:UnregisterSystem(systemName)
 
     system.World = self
@@ -565,7 +587,7 @@ end
 
 function ECSWorld:UnregisterResource(resource)
     local resourceName
-    
+
     if (type(resource) == "string") then
         resourceName = resource
         resource = self:GetResource(resourceName)
@@ -617,6 +639,15 @@ function ECSWorld:CreateEntitiesFromResource(resource, parent, data)
     end
 
     return rootInstance, newEntities, rootEntity
+end
+
+
+-- Update
+
+function ECSWorld:Update()
+    -- update adding of entities
+    -- update changes in entities
+    -- update removal of entities
 end
 
 
