@@ -89,8 +89,7 @@ function ECSEntity:AddComponentToEntity(componentName, component)
     local otherComponent = self:GetComponent(componentName)
 
     if (otherComponent ~= nil) then
-        self:_RemoveComponent(componentName, comp)
-        otherComponent = nil
+        self:_RemoveComponent(componentName, otherComponent)
     end
 
     self:_AddComponent(componentName, component)
@@ -161,7 +160,7 @@ function ECSEntity:UpdateRemovedComponents()
     for componentName, component in pairs(self._RemovedComponents) do
         component:Destroy()
     end
-    
+
     self._RemovedComponents = {}
 end
 
@@ -204,7 +203,7 @@ function ECSEntity:Destroy()
     self._AddedComponents = nil
     self._RemovedComponents = nil
     self._RegisteredSystems = nil
-    
+
 
     setmetatable(self, nil)
 end
@@ -230,7 +229,7 @@ function ECSEntity.new(instance)
     self._RegisteredSystems = {}
 
     self._IsServerSide = nil
-    
+
     self._IsBeingRemoved = false
     self._IsBeingDestroyed = false
     self._IsBeingUpdated = false

@@ -1,0 +1,15 @@
+{
+    "name" : "Roblox-ECS-Framework",
+    "servePort" : 8000,
+    "partitions" : {
+        "src" : {
+            "path" : "./src/",
+            "target" : "ReplicatedStorage.ECSFramework"
+        },
+
+        "tests" : {
+            "path" : "./tests/",
+            "target" : "ReplicatedStorage.ECSFrameworkTests"
+        }
+    }
+}

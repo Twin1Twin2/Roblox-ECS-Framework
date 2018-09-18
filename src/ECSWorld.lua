@@ -321,9 +321,6 @@ end
 
 
 function ECSWorld:_UpdateEntity(entity)
-    -- need to be able to add/remove components and remove the entity while it's being added/removed
-    -- hmm
-
     if (entity._IsBeingRemoved == true) then
         return
     end
@@ -359,29 +356,6 @@ function ECSWorld:_UpdateEntity(entity)
 
     entity:UpdateRemovedComponents()
     entity._IsBeingUpdated = false
-end
-
-
--- update an entity after it's components have changed or it has been added/removed
--- a
-
-function ECSWorld:_UpdateEntity2(entity)
-    if (entity._IsBeingRemoved == true) then
-        return
-    end
-
-    -- iterate through entity systems in order of priority
-    for _, system in pairs(self._EntitySystems) do
-        -- check if system already has this entity (?)
-        -- if so
-            -- check if entity does not meet system's component requirement
-            -- if so
-                -- remove entity from system
-        -- else
-            -- check if entity meets system's component requirement
-            -- if so
-                -- add entity to system
-    end
 end
 
 
@@ -639,15 +613,6 @@ function ECSWorld:CreateEntitiesFromResource(resource, parent, data)
     end
 
     return rootInstance, newEntities, rootEntity
-end
-
-
--- Update
-
-function ECSWorld:Update()
-    -- update adding of entities
-    -- update changes in entities
-    -- update removal of entities
 end
 
 
