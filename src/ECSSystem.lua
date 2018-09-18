@@ -127,6 +127,11 @@ function ECSSystem:RemoveEntity(entity)
 end
 
 
+function ECSSystem:Initialize()
+    -- callback
+end
+
+
 function ECSSystem:RegisteredToWorld(world)
     -- callback
 end
@@ -185,6 +190,9 @@ function ECSSystem.new(name, componentRequirement)
     self._IsInitialized = false
 
     self.Name = name
+
+    self._EntitiesToAdd = {}
+    self._EntitiesToRemove = {}
 
     self.Entities = {}
     self.World = nil
